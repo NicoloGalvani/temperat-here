@@ -107,3 +107,52 @@ class Environment ():
 
         """
         return A+B*T+C*T**2
+
+    def exponential(T,A,B,C):
+        """
+        Exponential function, useful to evaluate Baa or its component,
+        taken from Cramer DOI: 10.1121/1.405827.
+
+        Parameters
+        ----------
+        T : Float or numpy.ndarray
+            Temperature data
+        A : Float
+            0 Temperature value of Baa
+        B : Float
+            Linear Baa(T) dependance
+        C : Float
+            Temperature lenght-scale of Baa
+
+        Returns
+        -------
+        Float
+            Exponential description of Baa(T)
+    
+        """
+        return A-B*np.exp(-C/T)
+
+    def Hyland(T,A,B,C):
+        """
+        Approximated function to describe Bww, taken from Hyland
+        DOI: 10.6028/jres.079A.017.
+
+
+        Parameters
+        ----------
+        T : Float or numpy.ndarray
+            Temperature data
+        A : Float
+            0 Temperature value of Bww
+        B : Float
+            Linear decrease Baa(T) dependance
+        C : Float
+            Temperature lenght-scale of Bww
+
+        Returns
+        -------
+        Float
+            Exponential description of Bww(T)
+
+        """
+        return A-B/T*10**(C/T**2)
