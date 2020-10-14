@@ -16,7 +16,7 @@ class Environment ():
     Air_Data_path: Path
         Path from which takes experimental data regarding dry air without CO2's
         B parameter at varying T
-    Water_Data_path: Path        
+    Water_Data_path: Path
         Path from which takes experimental data regarding water vapor's
         B parameter at varying T
     CO2_Data_path: Path
@@ -31,13 +31,13 @@ class Environment ():
     """
     P0 = 101325
     T0 = 273.15
-    Molar_Fraction_path: Path = field(default='**/Molar_Fraction.txt')
-    Air_Data_path: Path = field(default='**/Dry_Air.txt')
-    Water_Data_path: Path = field(default='**/H2O.txt')
-    CO2_Data_path: Path = field(default='**/CO2.txt')
     T_input: float = field(default=T0+25, metadata={'unit': 'K'})
     H_input: float = field(default=0.0, metadata={'unit': '%'})
     P_input: float = field(default=P0, metadata={'unit': 'Pa'})
+    Molar_Fraction_path: Path = field(default='**/Data/Molar_Fraction.txt')
+    Air_Data_path: Path = field(default='**/Data/Dry_Air.txt')
+    Water_Data_path: Path = field(default='**/Data/H2O.txt')
+    CO2_Data_path: Path = field(default='**/Data/CO2.txt')
     Molar_Fraction: pd.DataFrame = field(init=False)
     Air_Data: pd.DataFrame = field(init=False)
     Water_Data: pd.DataFrame = field(init=False)
