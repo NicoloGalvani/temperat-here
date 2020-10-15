@@ -2,6 +2,9 @@ import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
 
+TEMP_0 = 273.15
+ATM_P = 101325
+
 @dataclass
 class Environment ():
     """Instances of this class represents a thermodynamic system
@@ -29,11 +32,10 @@ class Environment ():
     P_input: Float
         Pressure inside the environment, expressed in Pa
     """
-    P0 = 101325
-    T0 = 273.15
-    T_input: float = field(default=T0+25, metadata={'unit': 'K'})
-    H_input: float = field(default=0.0, metadata={'unit': '%'})
-    P_input: float = field(default=P0, metadata={'unit': 'Pa'})
+
+    T_input: float = field(default = TEMP_0 + 25, metadata={'unit' : 'K'})
+    H_input: float = field(default=0.0, metadata={'unit' : '%'})
+    P_input: float = field(default=ATM_P, metadata={'unit' : 'Pa'})
     Molar_Fraction_path: Path = field(default='**/Data/Molar_Fraction.txt')
     Air_Data_path: Path = field(default='**/Data/Dry_Air.txt')
     Water_Data_path: Path = field(default='**/Data/H2O.txt')
@@ -48,20 +50,22 @@ class Environment ():
 
     def __post_init__(self):
        try:
-           self.Molar_Fraction= pd.read_csv(self.Molar_Fraction_path,sep=' ')
-           self.Air_Data= pd.read_csv(self.Air_Data_path,sep=' ')
-           self.Water_Data= pd.read_csv(self.Water_Data_path, sep=' ')
+           self.Molar_Fraction = pd.read_csv(self.Molar_Fraction_path, sep=' ')
+           self.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
+           self.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ')
            self.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
        except:
            raise FileNotFoundError("Unable to find the reference data")
 
 
-    def Lennard (T:float or np.ndarray,m:int,e:float,s:float):
-        """
-        Ab initio definition of second virial potential B, as the integral
-        for r€[0,inf[ of (1-exp(U(r)/KbT)); where U is the interatomic potential.
-        Valid description for Dry Air without CO2.
-        Taken from Sengers.
+    def Lennard (T: float or np.ndarray, m: int, e: float, s: float):
+        """Ab initio definition of second virial potential B, as the
+        integral for r€[0,inf[ of (1-exp(U(r)/KbT)); where U is the
+        interatomic potential. Valid description for Dry Air without CO2.
+        Taken from Sengers, Klein and Gallagher, (1971)
+        Pressure-volume-temperature relationships of gases-virial coefficients.
+        U.S. National Bureau of Standards Report,
+        U.S. Air Forcc Technical Publication
 
         The interatomic potential is treated as a (m-6) potential,
         which for m=12 becomes the Lennard-Jones Potential
@@ -87,30 +91,32 @@ class Environment ():
 
         """
 
-        def integrand(r:float,T,m:int,e:float,s:float):
-                amplitude = (m*e)/(m-6)*(m/6)**(6/(m-6))
-                attractive = (s/r)**6
-                repulsive = (s/r)**m
-                potential = amplitude*(repulsive-attractive)
-                return 1-np.exp(-potential/T)
+        def integrand(r: float, T, m: int, e: float, s: float):
+                amplitude = (m * e) / (m - 6) * (m / 6)**(6 / (m - 6))
+                attractive = (s / r)**6
+                repulsive = (s / r)**m
+                potential = amplitude * (repulsive - attractive)
+                return 1 - np.exp(-potential / T)
 
-        if type(T) == float:
-            return 0.5*integrate.quad(lambda x: integrand(x,T,m,e,s),
-                                      0.01, np.inf)[0]
+        if isinstance(T, float):
+            return 0.5 * integrate.quad(lambda x: integrand(x, T, m, e, s),
+                                        0.01,
+                                        np.inf
+                                        )[0]
         else:
-            return np.array([0.5*integrate.quad(lambda x: integrand(x,t,m,e,s),
-                                       0.01, np.inf)[0] for t in T])
+            return np.array([0.5 * integrate.quad(
+                                        lambda x: integrand(x, t, m, e, s),
+                                        0.01,
+                                        np.inf
+                                        )[0] for t in T])
 
-    def parabole(T,A,B,C):
+    def parabole(T, A, B, C):
+        """Simple parabolic function, good enough to fit fast Baa, Bcc and Bww
         """
-        Simple parabolic function, good enough to fit fast Baa, Bcc and Bww
+        return A + B*T + C*T**2
 
-        """
-        return A+B*T+C*T**2
-
-    def exponential(T,A,B,C):
-        """
-        Exponential function, useful to evaluate Baa or its component,
+    def exponential(T, A, B, C):
+        """Exponential function, useful to evaluate Baa or its component,
         taken from Cramer DOI: 10.1121/1.405827.
 
         Parameters
@@ -128,13 +134,12 @@ class Environment ():
         -------
         Float
             Exponential description of Baa(T)
-    
-        """
-        return A-B*np.exp(-C/T)
 
-    def Hyland(T,A,B,C):
         """
-        Approximated function to describe Bww, taken from Hyland
+        return A - B * np.exp(-C / T)
+
+    def Hyland(T, A, B, C):
+        """Approximated function to describe Bww, taken from Hyland
         DOI: 10.6028/jres.079A.017.
 
 
@@ -155,4 +160,4 @@ class Environment ():
             Exponential description of Bww(T)
 
         """
-        return A-B/T*10**(C/T**2)
+        return A - B/T * 10**(C / T**2)
