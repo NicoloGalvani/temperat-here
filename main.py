@@ -2,6 +2,9 @@ import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
 
+"""This is the module docstring
+"""
+
 TEMP_0 = 273.15
 ATM_P = 101325
 
@@ -44,8 +47,6 @@ class Environment ():
     Air_Data: pd.DataFrame = field(init=False)
     Water_Data: pd.DataFrame = field(init=False)
     CO2_Data: pd.DataFrame = field(init=False)
-
-
     ##Possibility to insert also the link to pyroomsound?
 
     def __post_init__(self):
@@ -63,9 +64,8 @@ class Environment ():
         integral for r€[0,inf[ of (1-exp(U(r)/KbT)); where U is the
         interatomic potential. Valid description for Dry Air without CO2.
         Taken from Sengers, Klein and Gallagher, (1971)
-        Pressure-volume-temperature relationships of gases-virial coefficients.
-        U.S. National Bureau of Standards Report,
-        U.S. Air Forcc Technical Publication
+        'Pressure-volume-temperature relationships of
+        gases-virial coefficients.'
 
         The interatomic potential is treated as a (m-6) potential,
         which for m=12 becomes the Lennard-Jones Potential
@@ -91,12 +91,13 @@ class Environment ():
 
         """
 
-        def integrand(r: float, T, m: int, e: float, s: float):
-                amplitude = (m * e) / (m - 6) * (m / 6)**(6 / (m - 6))
-                attractive = (s / r)**6
-                repulsive = (s / r)**m
+        def integrand(r: float, T: float or np.ndarray,
+                      m: int, e: float, s: float):
+                amplitude = (m*e) / (m-6) * (m/6) ** (6 / (m-6))
+                attractive = (s/r) ** 6
+                repulsive = (s/r) ** m
                 potential = amplitude * (repulsive - attractive)
-                return 1 - np.exp(-potential / T)
+                return 1 - np.exp(-potential/T)
 
         if isinstance(T, float):
             return 0.5 * integrate.quad(lambda x: integrand(x, T, m, e, s),
@@ -110,12 +111,11 @@ class Environment ():
                                         np.inf
                                         )[0] for t in T])
 
-    def parabole(T, A, B, C):
-        """Simple parabolic function, good enough to fit fast Baa, Bcc and Bww
-        """
+    def parabole(T: float, A: float, B: float, C: float):
+        """Simple parabolic function, good enough to fit fast Baa and Bcc."""
         return A + B*T + C*T**2
 
-    def exponential(T, A, B, C):
+    def exponential(T: float, A: float, B: float, C: float):
         """Exponential function, useful to evaluate Baa or its component,
         taken from Cramer DOI: 10.1121/1.405827.
 
@@ -136,12 +136,11 @@ class Environment ():
             Exponential description of Baa(T)
 
         """
-        return A - B * np.exp(-C / T)
+        return A - B * np.exp(-C/T)
 
-    def Hyland(T, A, B, C):
+    def Hyland(T: float, A: float, B: float, C: float):
         """Approximated function to describe Bww, taken from Hyland
         DOI: 10.6028/jres.079A.017.
-
 
         Parameters
         ----------
@@ -160,4 +159,43 @@ class Environment ():
             Exponential description of Bww(T)
 
         """
-        return A - B/T * 10**(C / T**2)
+        return A - B/T * 10**(C/T**2)
+
+    def B_aw(T: float or np.ndarray):
+        """Approximated function to evaluate Baw(T), taken from Hyland"""
+        return (
+                36.98928
+                - 0.331705*T
+                + 0.139035E-2*T**2
+                - 0.574154E-5*T**3
+                + 0.326513E-7*T**4
+                - 0.142805E-9*T**5
+                )
+
+    def RH_to_Xw(self):
+        """Conversion from relative humidity to water molar fraction
+        taken from 'A simple expression for the saturation vapour pressure
+        of water in the range −50 to 140°C' J M Richards
+        """
+        t = 1 - (100+TEMP_0) / self.T_input
+        PSV = ATM_P * np.exp(
+                            13.3185*t
+                            - 1.9760*t**2
+                            - 0.6445*t**3
+                            - 0.1299*t**4
+                            )
+        f = 1.00062 + 3.14E-8*P + 4.6E-7*T**2
+        return self.H_input*f * PSV/self.P_input
+
+    def Air_Molar_Mass(self):
+        """Molar mass of dry air CO2 free, evaluated from Molar Fraction
+        Database from the most relevant components.
+        """
+        Molecules = ['N2', 'O2', 'Ar', 'Ne']
+        Molar_Masses = [float(self.Air_Data
+                                [self.Air_Data['Constituent'] == m]['xiMi'])
+                        for m in Molecules]
+        return np.sum(np.array(Molar_Masses))
+
+
+Room = Environment()
