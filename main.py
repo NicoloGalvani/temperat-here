@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
+import numpy as np
 
 """This is the module docstring
 """
@@ -136,7 +137,7 @@ class Environment ():
             Exponential description of Baa(T)
 
         """
-        return A - B * np.exp(-C/T)
+        return A - B*np.exp(-C/T)
 
     def Hyland(T: float, A: float, B: float, C: float):
         """Approximated function to describe Bww, taken from Hyland
@@ -197,5 +198,9 @@ class Environment ():
                         for m in Molecules]
         return np.sum(np.array(Molar_Masses))
 
+    def Sound_Speed(self):
+        """Mockup function, used now for testing, later implemented.
+        """
+        return 20.5*np.sqrt(self.T_input)
 
 Room = Environment()
