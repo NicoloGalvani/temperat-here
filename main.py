@@ -40,10 +40,10 @@ class Environment ():
     T_input: float = field(default = TEMP_0 + 25, metadata={'unit' : 'K'})
     H_input: float = field(default=0.0, metadata={'unit' : '%'})
     P_input: float = field(default=ATM_P, metadata={'unit' : 'Pa'})
-    Molar_Fraction_path: Path = field(default='**/Data/Molar_Fraction.txt')
-    Air_Data_path: Path = field(default='**/Data/Dry_Air.txt')
-    Water_Data_path: Path = field(default='**/Data/H2O.txt')
-    CO2_Data_path: Path = field(default='**/Data/CO2.txt')
+    Molar_Fraction_path: Path = field(default='Data/Molar_Fraction.txt')
+    Air_Data_path: Path = field(default='Data/Dry_Air.txt')
+    Water_Data_path: Path = field(default='Data/H2O.txt')
+    CO2_Data_path: Path = field(default='Data/CO2.txt')
     Molar_Fraction: pd.DataFrame = field(init=False)
     Air_Data: pd.DataFrame = field(init=False)
     Water_Data: pd.DataFrame = field(init=False)
@@ -185,7 +185,7 @@ class Environment ():
                             - 0.6445*t**3
                             - 0.1299*t**4
                             )
-        f = 1.00062 + 3.14E-8*P + 4.6E-7*T**2
+        f = 1.00062 + 3.14E-8*self.P_input + 4.6E-7*self.T_input**2
         return self.H_input*f * PSV/self.P_input
 
     def Air_Molar_Mass(self):
@@ -193,14 +193,13 @@ class Environment ():
         Database from the most relevant components.
         """
         Molecules = ['N2', 'O2', 'Ar', 'Ne']
-        Molar_Masses = [float(self.Air_Data
-                                [self.Air_Data['Constituent'] == m]['xiMi'])
-                        for m in Molecules]
-        return np.sum(np.array(Molar_Masses))
+        Molar_Masses = np.array([float(self.Molar_Fraction
+                                    [self.Molar_Fraction['Constituent'] == m]
+                                    ['xiMi'])
+                                for m in Molecules])
+        return np.sum(Molar_Masses)
 
     def Sound_Speed(self):
         """Mockup function, used now for testing, later implemented.
         """
         return 20.5*np.sqrt(self.T_input)
-
-Room = Environment()
