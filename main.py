@@ -18,22 +18,22 @@ class Environment ():
 
     Parameters
     ----------
-    Molar_Fraction_path: Path
-        Path from which takes experimental data regarding air composition
-    Air_Data_path: Path
-        Path from which takes experimental data regarding dry air without CO2's
-        B parameter at varying T
-    Water_Data_path: Path
-        Path from which takes experimental data regarding water vapor's
-        B parameter at varying T
-    CO2_Data_path: Path
-        Path from which takes experimental data regarding CO2's
-        B parameter at varying T
-    T_input: Float
+    Molar_Fraction_path: Path, optional
+        Path containing air composition data, written as a csv-space-separated
+    Air_Data_path: Path, optional
+        Path containing CO2-free-dry-air B parameter at varying T, written as
+        a csv-space-separated.
+    Water_Data_path: Path, optional
+        Path containing water vapor B parameter at varying T, written as
+        a csv-space-separated.
+    CO2_Data_path: Path, optional
+        Path containing CO2 B parameter at varying T, written as a
+        csv-space-separated.
+    T_input: Float, optional
         Temperature inside the environment, expressed in K
-    H_input: Float
+    H_input: Float, optional
         Humidity inside the environment, expressed in %
-    P_input: Float
+    P_input: Float, optional
         Pressure inside the environment, expressed in Pa
     """
 
@@ -50,20 +50,33 @@ class Environment ():
     CO2_Data: pd.DataFrame = field(init=False)
     ##Possibility to insert also the link to pyroomsound?
 
-    def __post_init__(self):
-       try:
-           self.Molar_Fraction = pd.read_csv(self.Molar_Fraction_path, sep=' ')
-           self.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
-           self.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ')
-           self.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
-       except:
-           raise FileNotFoundError("Unable to find the reference data")
+ def __post_init__(self):
+        """
+        When an instance of class Environment is created:
+            -it will store data from the paths provided into databases
+            -it will fit those data to obtain the right parameters of Bi(T)
 
+        Raises
+        ------
+        FileNotFoundError
+            This error raises if it has not been possible to find the specified
+            data in the locations provided.
 
+        """
+        try:
+            self.Molar_Fraction= pd.read_csv(self.Molar_Fraction_path,sep=' ')
+            self.Air_Data= pd.read_csv(self.Air_Data_path,sep=' ')
+            self.Water_Data= pd.read_csv(self.Water_Data_path, sep=' ')
+            self.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
+        except:
+            raise FileNotFoundError("Unable to find the reference data")
+        B_values,B_covariances = Environment.B_fit()
+
+#Does not converge for Dry Air, to fix
     def Lennard (T: float or np.ndarray, m: int, e: float, s: float):
-        """Ab initio definition of second virial potential B, as the
-        integral for r€[0,inf[ of (1-exp(U(r)/KbT)); where U is the
-        interatomic potential. Valid description for Dry Air without CO2.
+        """Ab initio definition of second virial potential B, as the integral
+        for r€[0,inf[ of (1-exp(U(r)/KbT)); where U is the interatomic
+        potential. Valid description for Dry Air without CO2.
         Taken from Sengers, Klein and Gallagher, (1971)
         'Pressure-volume-temperature relationships of
         gases-virial coefficients.'
@@ -148,7 +161,7 @@ class Environment ():
         T : Float or numpy.ndarray
             Temperature data
         A : Float
-            0 Temperature value of Bww
+            0K Temperature value of Bww
         B : Float
             Linear decrease Baa(T) dependance
         C : Float
@@ -173,20 +186,71 @@ class Environment ():
                 - 0.142805E-9*T**5
                 )
 
+    def B_fit(self, draw: bool = False):
+        """Function which is executed as an instance of the class is created:
+        it reads data from databases and fits them with the appropriate
+        functions, to store the optimized parameters.
+        ----------
+        draw : bool, optional
+            If True, the function will draw plots of the fits, default = False.
+
+        Returns
+        -------
+        Optimized_parameters: 3x3 np.ndarray of floats
+            Optimal values for the parameters so that the sum of the squared
+            residuals of f(xdata, *popt) - ydata is minimized; of respectively
+            Baa, Bww, Bcc.
+
+        Optimized_covariances: 3x3x3 np.ndarray of floats
+            The estimated covariance of Optimized_parameters.
+            The diagonals provide the variance of the parameter estimate.
+
+        """
+
+        Data = [self.Air_Data, self.Water_Data, self.CO2_Data]
+        functions = [Environment.exponential,
+                     Environment.parabole,
+                     Environment.Hyland]
+        p0 = [[1, 1, 1], [21, 147, 100], [33.97, 55306, 72000]]
+        title = ['Air', 'Water', 'CO2']
+        Optimized_parameters = []
+        Optimized_covariances = []
+        for i,D in enumerate(Data):
+            function = functions[i]
+            x = D['T,K']
+            y = D['B,cm^3/mol']
+            popt,pcov = curve_fit(function, x, y, p0[i])
+            Optimized_parameters.append(popt)
+            Optimized_covariances.append(pcov)
+            if draw:
+                new_x = np.arange(273, 313, 0.5)
+                new_y = function(new_x, popt[0], popt[1], popt[2])
+                fig,ax = plt.subplots(nrows = 1)
+                ax.tick_params(direction = 'in')
+                fig.set_figheight(6)
+                fig.set_figwidth(6)
+                sns.scatterplot(x, y, ax = ax, color = 'blue', label = 'data')
+                sns.lineplot(new_x, new_y, ax = ax,
+                            color = 'orange', label = 'fit')
+                plt.title(title[i])
+                ax.set_ylabel('B(T) (cm^3/mol)')
+                ax.set_xlabel('Temperature (K)')
+        return Optimized_parameters, Optimized_covariances
+
     def RH_to_Xw(self):
         """Conversion from relative humidity to water molar fraction
         taken from 'A simple expression for the saturation vapour pressure
         of water in the range −50 to 140°C' J M Richards
         """
         t = 1 - (100+TEMP_0) / self.T_input
-        PSV = ATM_P * np.exp(
+        Saturated_Vapor_Pressure = ATM_P * np.exp(
                             13.3185*t
                             - 1.9760*t**2
                             - 0.6445*t**3
                             - 0.1299*t**4
                             )
-        f = 1.00062 + 3.14E-8*self.P_input + 4.6E-7*self.T_input**2
-        return self.H_input*f * PSV/self.P_input
+        f = 1.00062 + 3.14E-8*self.P_input + 4.6E-7*self.T_input**2 #Enhance factor
+        return self.H_input*f * Saturated_Vapor_Pressure/self.P_input
 
     def Air_Molar_Mass(self):
         """Molar mass of dry air CO2 free, evaluated from Molar Fraction
