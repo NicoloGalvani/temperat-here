@@ -267,22 +267,22 @@ class Environment ():
         -------
         Speed_DF : pandas.Dataframe
             Table of values of speed of sound at varying temperature (from
-            0 C° to 30 C°) and RH (from 10% to 90%), expressed in m/s
+            0 °C to 30 °C) and RH (from 10% to 90%), expressed in m/s
         Attenuation_DF : pandas.Dataframe
             Table of values of sound attenuation at varying temperature (from
-            0 C° to 30 C°) and RH (from 10% to 90%), expressed in dB/km
+            0 °C to 30 °C) and RH (from 10% to 90%), expressed in dB/km
 
         """
         Speed_Table = pd.read_html(kayelaby)[10].dropna()
         Speed_DF = pd.DataFrame({
                                  'Speed (m/s)' : [],
-                                 'Temperature (K)' : [],
+                                 'Temperature (°C)' : [],
                                  'Relative Humidity (%)' : []
                                  })
         for x in range(1,10):
             Fixed_RH = pd.DataFrame({
                                     'Speed (m/s)' : Speed_Table[x][2:],
-                                    'Temperature (K)' : Speed_Table[0][2:],
+                                    'Temperature (°C)' : Speed_Table[0][2:],
                                     'Relative Humidity (%)' : [
                                                                Speed_Table[x][1]
                                                                for j in range(7)
