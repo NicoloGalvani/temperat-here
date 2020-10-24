@@ -6,12 +6,22 @@ def test_air_molar_mass_positive():
     Room = Environment()
     assert Room.Air_Molar_Mass() > 0
 
-def test_xw_lesser_than_one():
-    Room = Environment()
+@given(st.floats(250.,330.), st.floats(0,100))
+def test_xw_in_appropriate_range(T, RH):
+    Room = Environment(T_input = T, H_input = RH)
     assert Room.RH_to_Xw() >= 0
-    assert Room.RH_to_Xw() < 0.1
+    assert Room.RH_to_Xw() <= 0.19
 
-@given(st.floats(250,330),st.floats(0,100),st.floats(101325,111325))
-def test_sound_speed_positive(T,H,P):
-    Room = Environment(T,H,P)
+@given(st.floats(250.,330.), st.floats(0,100), st.floats(101325,111325))
+def test_sound_speed_positive(T, RH, P):
+    Room = Environment(T, RH, P)
     assert Room.Sound_Speed() > 0
+
+def test_sound_speed_compatible_with_data():
+    Room = Environment()
+    Data = Environment.Speed_Data
+    for i in range(len(Data)):
+        T = Data['Temperature (K)'][i] + 273.15
+        RH = Data['Relative Humidity (%)'][i]
+        room = Environment(T,RH)
+        assert abs(room.Sound_Speed() - Data['Speed (m/s)'][i]) < 8 #will be reduced when a true Sound_Speed function will be implemented

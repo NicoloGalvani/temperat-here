@@ -2,12 +2,18 @@ import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
 import numpy as np
+from scipy.optimize import curve_fit
+import scipy.integrate as integrate
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 """This is the module docstring
 """
 
 TEMP_0 = 273.15
 ATM_P = 101325
+kayelaby = 'https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air'
+
 
 @dataclass
 class Environment ():
@@ -38,23 +44,29 @@ class Environment ():
     """
 
     T_input: float = field(default = TEMP_0 + 25, metadata={'unit' : 'K'})
-    H_input: float = field(default=0.0, metadata={'unit' : '%'})
-    P_input: float = field(default=ATM_P, metadata={'unit' : 'Pa'})
-    Molar_Fraction_path: Path = field(default='Data/Molar_Fraction.txt')
-    Air_Data_path: Path = field(default='Data/Dry_Air.txt')
-    Water_Data_path: Path = field(default='Data/H2O.txt')
-    CO2_Data_path: Path = field(default='Data/CO2.txt')
-    Molar_Fraction: pd.DataFrame = field(init=False)
-    Air_Data: pd.DataFrame = field(init=False)
-    Water_Data: pd.DataFrame = field(init=False)
-    CO2_Data: pd.DataFrame = field(init=False)
+    H_input: float = field(default = 0.0, metadata={'unit' : '%'})
+    P_input: float = field(default = ATM_P, metadata={'unit' : 'Pa'})
+    Molar_Fraction_path: Path = field(default = 'Data/Molar_Fraction.txt')
+    Air_Data_path: Path = field(default = 'Data/Dry_Air.txt')
+    Water_Data_path: Path = field(default = 'Data/H2O.txt')
+    CO2_Data_path: Path = field(default = 'Data/CO2.txt')
+    Molar_Fraction = pd.DataFrame()# = field(init=False)
+    Air_Data = pd.DataFrame()# = field(init=False)
+    Water_Data = pd.DataFrame()# = field(init=False)
+    CO2_Data = pd.DataFrame() #= field(init=False)
+    B_values = pd.DataFrame()# = field(init=False)
+    B_covariances = pd.DataFrame()# = field(init=False)
+    Speed_Data = pd.DataFrame()#: pd.DataFrame = field(init=False)
+    Attenuation_Data = pd.DataFrame()#: pd.DataFrame = field(init=False)
+
     ##Possibility to insert also the link to pyroomsound?
 
- def __post_init__(self):
+    def __post_init__(self):
         """
         When an instance of class Environment is created:
             -it will store data from the paths provided into databases
             -it will fit those data to obtain the right parameters of Bi(T)
+            -it will read and store data from Kaye and Laby website archive
 
         Raises
         ------
@@ -63,14 +75,20 @@ class Environment ():
             data in the locations provided.
 
         """
-        try:
-            self.Molar_Fraction= pd.read_csv(self.Molar_Fraction_path,sep=' ')
-            self.Air_Data= pd.read_csv(self.Air_Data_path,sep=' ')
-            self.Water_Data= pd.read_csv(self.Water_Data_path, sep=' ')
-            self.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
-        except:
-            raise FileNotFoundError("Unable to find the reference data")
-        B_values,B_covariances = Environment.B_fit()
+        if Environment.Molar_Fraction.empty:
+            try:
+                Environment.Molar_Fraction = pd.read_csv(self.Molar_Fraction_path, sep=' ')
+                Environment.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
+                Environment.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ')
+                Environment.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
+                (Environment.B_values,
+                 Environment.B_covariances) = Environment.B_fit()
+                (Environment.Speed_Data,
+                 Environment.Attenuation_Data) = Environment.Read_Kayelaby()
+            except:
+                raise FileNotFoundError("Unable to find the reference data")
+
+
 
 #Does not converge for Dry Air, to fix
     def Lennard (T: float or np.ndarray, m: int, e: float, s: float):
@@ -186,7 +204,7 @@ class Environment ():
                 - 0.142805E-9*T**5
                 )
 
-    def B_fit(self, draw: bool = False):
+    def B_fit(draw: bool = False):
         """Function which is executed as an instance of the class is created:
         it reads data from databases and fits them with the appropriate
         functions, to store the optimized parameters.
@@ -207,7 +225,9 @@ class Environment ():
 
         """
 
-        Data = [self.Air_Data, self.Water_Data, self.CO2_Data]
+        Data = [Environment.Air_Data,
+                Environment.Water_Data,
+                Environment.CO2_Data]
         functions = [Environment.exponential,
                      Environment.parabole,
                      Environment.Hyland]
@@ -219,7 +239,7 @@ class Environment ():
             function = functions[i]
             x = D['T,K']
             y = D['B,cm^3/mol']
-            popt,pcov = curve_fit(function, x, y, p0[i])
+            popt, pcov = curve_fit(function, x, y, p0[i])
             Optimized_parameters.append(popt)
             Optimized_covariances.append(pcov)
             if draw:
@@ -237,30 +257,86 @@ class Environment ():
                 ax.set_xlabel('Temperature (K)')
         return Optimized_parameters, Optimized_covariances
 
+    def Read_Kayelaby():
+        """Function which is executed as an instance of the class is created:
+        it reads data from Kaye and Laby website and store them into
+        dataframes common to all instances.
+
+
+        Returns
+        -------
+        Speed_DF : pandas.Dataframe
+            Table of values of speed of sound at varying temperature (from
+            0 C° to 30 C°) and RH (from 10% to 90%), expressed in m/s
+        Attenuation_DF : pandas.Dataframe
+            Table of values of sound attenuation at varying temperature (from
+            0 C° to 30 C°) and RH (from 10% to 90%), expressed in dB/km
+
+        """
+        Speed_Table = pd.read_html(kayelaby)[10].dropna()
+        Speed_DF = pd.DataFrame({
+                                 'Speed (m/s)' : [],
+                                 'Temperature (K)' : [],
+                                 'Relative Humidity (%)' : []
+                                 })
+        for x in range(1,10):
+            Fixed_RH = pd.DataFrame({
+                                    'Speed (m/s)' : Speed_Table[x][2:],
+                                    'Temperature (K)' : Speed_Table[0][2:],
+                                    'Relative Humidity (%)' : [
+                                                               Speed_Table[x][1]
+                                                               for j in range(7)
+                                                               ]
+                                     })
+            Speed_DF = pd.concat([Speed_DF,Fixed_RH]).astype(float)
+
+        Attenuation_Table = pd.read_html(kayelaby)[9].dropna()
+        Attenuation_DF = pd.DataFrame({
+                                       'Attenuation (dB/km)' : [],
+                                       'Frequency (kHz)' : [],
+                                       'Relative Humidity (%)' : []
+                                       })
+        for x in range(1,10):
+            Fixed_RH = pd.DataFrame({
+                                     'Attenuation (dB/km)' : Attenuation_Table
+                                                                        [x][2:],
+                                     'Frequency (kHz)' : Attenuation_Table
+                                                                        [0][2:],
+                                     'Relative Humidity (%)' : [
+                                                        Attenuation_Table[x][1]
+                                                        for j in range(21)
+                                                                ]
+                                     })
+            Attenuation_DF = pd.concat([Attenuation_DF,Fixed_RH]).astype(float)
+        Speed_DF = Speed_DF.reset_index(drop = True)
+        Attenuation_DF = Attenuation_DF.reset_index(drop = True)
+        return Speed_DF, Attenuation_DF
+
     def RH_to_Xw(self):
-        """Conversion from relative humidity to water molar fraction
+        """Conversion from relative humidity to water molar fraction,
         taken from 'A simple expression for the saturation vapour pressure
         of water in the range −50 to 140°C' J M Richards
         """
-        t = 1 - (100+TEMP_0) / self.T_input
+        t = 1 - (100 + TEMP_0) / self.T_input
         Saturated_Vapor_Pressure = ATM_P * np.exp(
-                            13.3185*t
-                            - 1.9760*t**2
-                            - 0.6445*t**3
-                            - 0.1299*t**4
-                            )
-        f = 1.00062 + 3.14E-8*self.P_input + 4.6E-7*self.T_input**2 #Enhance factor
-        return self.H_input*f * Saturated_Vapor_Pressure/self.P_input
+                                                  13.3185*t
+                                                  - 1.9760*t**2
+                                                  - 0.6445*t**3
+                                                  - 0.1299*t**4
+                                                  )
+        f = 1.00062 + 3.14E-8*self.P_input + 5.6E-7*self.T_input**2 #Enhance factor
+        return self.H_input/100 * f * Saturated_Vapor_Pressure/self.P_input
 
     def Air_Molar_Mass(self):
         """Molar mass of dry air CO2 free, evaluated from Molar Fraction
         Database from the most relevant components.
         """
         Molecules = ['N2', 'O2', 'Ar', 'Ne']
-        Molar_Masses = np.array([float(self.Molar_Fraction
-                                    [self.Molar_Fraction['Constituent'] == m]
-                                    ['xiMi'])
-                                for m in Molecules])
+        Molar_Masses = np.array([float(Environment.Molar_Fraction
+                                        [Environment.Molar_Fraction
+                                        ['Constituent'] == m]['xiMi']
+                                        ) for m in Molecules
+                                ])
         return np.sum(Molar_Masses)
 
     def Sound_Speed(self):
