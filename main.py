@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import curve_fit
 import scipy.integrate as integrate
+import scipy.misc as misc
 from matplotlib import pyplot as plt
 import seaborn as sns
 
@@ -50,20 +51,21 @@ class Environment ():
     Air_Data_path: Path = field(default = 'Data/Dry_Air.txt')
     Water_Data_path: Path = field(default = 'Data/H2O.txt')
     CO2_Data_path: Path = field(default = 'Data/CO2.txt')
-    Molar_Fraction = pd.DataFrame()# = field(init=False)
-    Air_Data = pd.DataFrame()# = field(init=False)
-    Water_Data = pd.DataFrame()# = field(init=False)
-    CO2_Data = pd.DataFrame() #= field(init=False)
-    B_values = pd.DataFrame()# = field(init=False)
-    B_covariances = pd.DataFrame()# = field(init=False)
-    Speed_Data = pd.DataFrame()#: pd.DataFrame = field(init=False)
-    Attenuation_Data = pd.DataFrame()#: pd.DataFrame = field(init=False)
+    Molar_Fraction = pd.DataFrame()
+    Air_Data = pd.DataFrame()
+    Water_Data = pd.DataFrame()
+    CO2_Data = pd.DataFrame()
+    B_values = pd.DataFrame()
+    B_covariances = pd.DataFrame()
+    Speed_Data = pd.DataFrame()
+    Attenuation_Data = pd.DataFrame()
+    Molar_Mass = float
 
     ##Possibility to insert also the link to pyroomsound?
 
     def __post_init__(self):
         """
-        When an instance of class Environment is created:
+        When the first instance of class Environment is created:
             -it will store data from the paths provided into databases
             -it will fit those data to obtain the right parameters of Bi(T)
             -it will read and store data from Kaye and Laby website archive
@@ -85,6 +87,7 @@ class Environment ():
                  Environment.B_covariances) = Environment.B_fit()
                 (Environment.Speed_Data,
                  Environment.Attenuation_Data) = Environment.Read_Kayelaby()
+                Environment.Molar_Mass = self.Set_Molar_Mass()
             except:
                 raise FileNotFoundError("Unable to find the reference data")
 
@@ -143,11 +146,11 @@ class Environment ():
                                         np.inf
                                         )[0] for t in T])
 
-    def parabole(T: float, A: float, B: float, C: float):
+    def Parabole(T: float, A: float, B: float, C: float):
         """Simple parabolic function, good enough to fit fast Baa and Bcc."""
         return A + B*T + C*T**2
 
-    def exponential(T: float, A: float, B: float, C: float):
+    def Exponential(T: float, A: float, B: float, C: float):
         """Exponential function, useful to evaluate Baa or its component,
         taken from Cramer DOI: 10.1121/1.405827.
 
@@ -208,6 +211,8 @@ class Environment ():
         """Function which is executed as an instance of the class is created:
         it reads data from databases and fits them with the appropriate
         functions, to store the optimized parameters.
+
+        Parameters
         ----------
         draw : bool, optional
             If True, the function will draw plots of the fits, default = False.
@@ -228,8 +233,8 @@ class Environment ():
         Data = [Environment.Air_Data,
                 Environment.Water_Data,
                 Environment.CO2_Data]
-        functions = [Environment.exponential,
-                     Environment.parabole,
+        functions = [Environment.Exponential,
+                     Environment.Hyland,
                      Environment.Hyland]
         p0 = [[1, 1, 1], [21, 147, 100], [33.97, 55306, 72000]]
         title = ['Air', 'Water', 'CO2']
@@ -258,7 +263,7 @@ class Environment ():
         return Optimized_parameters, Optimized_covariances
 
     def Read_Kayelaby():
-        """Function which is executed as an instance of the class is created:
+        """Function which is called as an instance of the class is created:
         it reads data from Kaye and Laby website and store them into
         dataframes common to all instances.
 
@@ -283,10 +288,8 @@ class Environment ():
             Fixed_RH = pd.DataFrame({
                                     'Speed (m/s)' : Speed_Table[x][2:],
                                     'Temperature (°C)' : Speed_Table[0][2:],
-                                    'Relative Humidity (%)' : [
-                                                               Speed_Table[x][1]
-                                                               for j in range(7)
-                                                               ]
+                                    'Relative Humidity (%)' :
+                                        [Speed_Table[x][1] for j in range(7)]
                                      })
             Speed_DF = pd.concat([Speed_DF,Fixed_RH]).astype(float)
 
@@ -298,19 +301,42 @@ class Environment ():
                                        })
         for x in range(1,10):
             Fixed_RH = pd.DataFrame({
-                                     'Attenuation (dB/km)' : Attenuation_Table
-                                                                        [x][2:],
-                                     'Frequency (kHz)' : Attenuation_Table
-                                                                        [0][2:],
-                                     'Relative Humidity (%)' : [
-                                                        Attenuation_Table[x][1]
-                                                        for j in range(21)
-                                                                ]
+                                     'Attenuation (dB/km)' :
+                                         Attenuation_Table[x][2:],
+                                     'Frequency (kHz)' :
+                                         Attenuation_Table[0][2:],
+                                     'Relative Humidity (%)' :
+                                         [Attenuation_Table[x][1]
+                                          for j in range(21)]
                                      })
             Attenuation_DF = pd.concat([Attenuation_DF,Fixed_RH]).astype(float)
         Speed_DF = Speed_DF.reset_index(drop = True)
         Attenuation_DF = Attenuation_DF.reset_index(drop = True)
         return Speed_DF, Attenuation_DF
+
+    def Set_Molar_Mass(self):
+        """Evaluates molar mass of the air components from Molar Fraction
+        Database, taking into account the most relevant components.
+        Called as an instance of the class is created.
+
+        Returns
+        -------
+        Mass : float
+            Combined molar mass of dry air CO2 free, water vapor and CO2
+        """
+        Molecules = ['N2', 'O2', 'Ar', 'Ne']
+        EMF = Environment.Molar_Fraction
+        Molar_Masses_xi = np.array([float(EMF[EMF['Constituent'] == m]['xiMi'])
+                                    for m in Molecules])
+        M = [float(EMF[EMF['Constituent'] == m]['Mi']) for m in Molecules]
+        Air_Molar_Mass = np.sum(Molar_Masses_xi)/np.sum(M)
+        Water_Molar_Mass = float(EMF[EMF['Constituent'] == 'H2O']['Mi'])
+        CO2_Molar_Mass = float(EMF[EMF['Constituent'] == 'CO2']['Mi'])
+        xcc = float(EMF[EMF['Constituent'] == 'CO2']['xi'])
+        xww = self.RH_to_Xw()
+        xaa = (1-xcc-xww)
+        Mass = Air_Molar_Mass*xaa + Water_Molar_Mass*xww + CO2_Molar_Mass*xcc
+        return Mass
 
     def RH_to_Xw(self):
         """Conversion from relative humidity to water molar fraction,
@@ -327,9 +353,6 @@ class Environment ():
         f = 1.00062 + 3.14E-8*self.P_input + 5.6E-7*self.T_input**2 #Enhance factor
         return self.H_input/100 * f * Saturated_Vapor_Pressure/self.P_input
 
-    def Air_Molar_Mass(self):
-        """Molar mass of dry air CO2 free, evaluated from Molar Fraction
-        Database from the most relevant components.
         """
         Molecules = ['N2', 'O2', 'Ar', 'Ne']
         Molar_Masses = np.array([float(Environment.Molar_Fraction
