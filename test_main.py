@@ -1,6 +1,7 @@
 from hypothesis import given
 import hypothesis.strategies as st
 from main import Environment
+from main import Read_Kayelaby_Speed
 
 def test_air_molar_mass_positive():
     Room = Environment()
@@ -21,8 +22,7 @@ def test_sound_speed_positive(T, RH, P):
 
 def test_sound_speed_compatible_with_data():
     Precision = 8 #will be reduced when a true Sound_Speed function will be implemented
-    Room = Environment()
-    Data = Environment.Speed_Data
+    Data = Read_Kayelaby_Speed()
     for i in range(len(Data)):
         T_K = Data['Temperature (°C)'][i] + 273.15
         RH = Data['Relative Humidity (%)'][i]
