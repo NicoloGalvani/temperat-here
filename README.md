@@ -31,7 +31,9 @@ c at 0 frequency is defined as:
 
 while the dispersive effects produce a Δc frequency dependent, bringing to:
 
-<a href="https://www.codecogs.com/eqnedit.php?latex=\frac{1}{c_\phi}&space;=&space;\frac{1}{c_0}&space;-&space;\frac{\alpha_{\nu&space;N}}{2&space;\pi&space;f_{r&space;N}}&space;&plus;&space;\frac{\alpha_{\nu&space;O}}{2&space;\pi&space;f_{r&space;O}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\frac{1}{c_\phi}&space;=&space;\frac{1}{c_0}&space;-&space;\frac{\alpha_{\nu&space;N}}{2&space;\pi&space;f_{r&space;N}}&space;&plus;&space;\frac{\alpha_{\nu&space;O}}{2&space;\pi&space;f_{r&space;O}}" title="\frac{1}{c_\phi} = \frac{1}{c_0} - \frac{\alpha_{\nu N}}{2 \pi f_{r N}} + \frac{\alpha_{\nu O}}{2 \pi f_{r O}}" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=\frac{1}{c_\phi}&space;=&space;\frac{1}{c_0}&space;-&space;\frac{\alpha_{\nu&space;N}}{2&space;\pi&space;f_{r&space;N}}&space;&-;&space;\frac{\alpha_{\nu&space;O}}{2&space;\pi&space;f_{r&space;O}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\frac{1}{c_\phi}&space;=&space;\frac{1}{c_0}&space;-&space;\frac{\alpha_{\nu&space;N}}{2&space;\pi&space;f_{r&space;N}}&space;&plus;&space;\frac{\alpha_{\nu&space;O}}{2&space;\pi&space;f_{r&space;O}}" title="\frac{1}{c_\phi} = \frac{1}{c_0} - \frac{\alpha_{\nu N}}{2 \pi f_{r N}} - \frac{\alpha_{\nu O}}{2 \pi f_{r O}}" /></a>
+
+where the alphas are the plane wave attenuation coefficients for N2 and O2 due to vibrational relaxation, and f the relaxation frequencies for the 2 gases. 
 
 The main difficulties in c calculations are related to the virial coefficient.
 
@@ -48,7 +50,7 @@ The equation is complicated by the necessity of modeling the intermolecular forc
 - Exponential: taken from Cramer DOI: 10.1121/1.405827. Fits well dry-air CO2-free data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;-&space;b&space;e^{\frac{c}{T}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;-&space;b&space;e^{\frac{c}{T}}" title="B(T) = a - b e^{\frac{c}{T}}" /></a>
 
-- Hyland: DOI: taken from Hyland 10.6028/jres.079A.017. Fits well water vapor data.
+- Hyland:  taken from Hyland DOI:10.6028/jres.079A.017. Fits well water vapor data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;-&space;\frac{b}{T}&space;10^{\frac{c}{T^2}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;-&space;\frac{b}{T}&space;10^{\frac{c}{T^2}}" title="B(T) = a - \frac{b}{T} 10^{\frac{c}{T^2}}" /></a>
 
 - Simple parabola: provides the rougher -but faster- fits for the data, good for CO2 data.
@@ -74,7 +76,9 @@ The basic concept of the experiment is the following:
 
 - the microphone registers the reflected sound wave after a time t, discerning it from the background noise.
 
-The speed cphi can then be evaluated as simply as cphi = 2L/t (as long as l<<L, other configurations will be tested).
+The speed cφ can then be evaluated as simply as <a href="https://www.codecogs.com/eqnedit.php?latex=c_{\phi}&space;=&space;\frac{2L+l}{t}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?c_{\phi}&space;=&space;\frac{2L+l}{t}" title="c_{\phi} = \frac{2L+l}{t}" /></a> in the simplest configuration, where the microphone is behind the speaker. Other configurations will be taken into account, varying the reciprocal position of speaker, microphone and wall (and so L and l).
+
+<a href="https://ibb.co/18vLVSg"><img src="https://i.ibb.co/18vLVSg/Basic-space-confguration-1.png" alt="Basic-space-confguration-1" border="0"></a>
 
 
 # How: the code
