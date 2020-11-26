@@ -42,23 +42,28 @@ B(T) is the contribute to Pressure due to 2-particle interactions:
 
 The equation is complicated by the necessity of modeling the intermolecular force Φ(r_{12}), so B is usually measured through experimental meaning and tabulated. There are many fitting equations to describe B as a function of T, and the code has four functions built-in:
 
-- Lennard: using a Lennard-Jones-like potential to describe intermolecular force, it fits B faithfully to the analytical description.
+- Lennard: Taken from Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'. Using a (m-6) potential, which for m=12 becomes the Lennard-Jones Potential, to describe intermolecular force, it fits B faithfully to the analytical description. Actually it fails to converge in fitting properly.
+<a href="https://www.codecogs.com/eqnedit.php?latex=\Phi(r;m,s)=\frac{m&space;e}{m-6}(\frac{m}{6})^{\frac{6}{m-6}}[(\frac{s}{r})^m-(\frac{s}{r})^6]" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\Phi(r;m,s)=\frac{m&space;e}{m-6}(\frac{m}{6})^{\frac{6}{m-6}}[(\frac{s}{r})^m-(\frac{s}{r})^6]" title="\Phi(r;m,s)=\frac{m e}{m-6}(\frac{m}{6})^{\frac{6}{m-6}}[(\frac{s}{r})^m-(\frac{s}{r})^6]" /></a>
 
-- Exponential: taken by ...
+- Exponential: taken from Cramer DOI: 10.1121/1.405827. Fits well dry-air CO2-free data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;-&space;b&space;e^{\frac{c}{T}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;-&space;b&space;e^{\frac{c}{T}}" title="B(T) = a - b e^{\frac{c}{T}}" /></a>
 
-- Hyland: suggested by Hyland in "" to determine 
+- Hyland: DOI: taken from Hyland 10.6028/jres.079A.017. Fits well water vapor data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;-&space;\frac{b}{T}&space;10^{\frac{c}{T^2}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;-&space;\frac{b}{T}&space;10^{\frac{c}{T^2}}" title="B(T) = a - \frac{b}{T} 10^{\frac{c}{T^2}}" /></a>
 
-- Simple parabola
+- Simple parabola: provides the rougher -but faster- fits for the data, good for CO2 data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;T^2&space;&plus;&space;b&space;T&space;&plus;&space;c" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;T^2&space;&plus;&space;b&space;T&space;&plus;&space;c" title="B(T) = a T^2 + b T + c" /></a>
 
 
 
-The total second virial coefficient is given by:
+The total second virial coefficient is given by the composition of the single gas coefficients weighted by their concentration, following:
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=B_{mix}&space;=&space;x_a^2&space;B_{aa}&space;&plus;&space;x_c^2&space;B_{cc}&space;&plus;&space;2&space;x_a&space;x_w&space;B_{aw}&space;&plus;&space;x_w^2&space;B_{ww}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B_{mix}&space;=&space;x_a^2&space;B_{aa}&space;&plus;&space;x_c^2&space;B_{cc}&space;&plus;&space;2&space;x_a&space;x_w&space;B_{aw}&space;&plus;&space;x_w^2&space;B_{ww}" title="B_{mix} = x_a^2 B_{aa} + x_c^2 B_{cc} + 2 x_a x_w B_{aw} + x_w^2 B_{ww}" /></a>
 
+where the only mixed second virial coefficient different from 0 is air-water vapor one, which is fitted from data according to Hyland's formula: 
+
+
+<a href="https://www.codecogs.com/eqnedit.php?latex=\begin{align*}&space;Baw(T)&space;&=&space;36.98928-0.331705T&plus;0.139035*10^{-2}&space;T^2\\&space;&&space;-&space;0.574154*10^{-5}&space;T^3&space;&plus;&space;0.326513*10^{-7}&space;T^4&space;-&space;0.142805*10^{-9}&space;T^5&space;\end{align*}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\begin{align*}&space;Baw(T)&space;&=&space;36.98928-0.331705T&plus;0.139035*10^{-2}&space;T^2\\&space;&&space;-&space;0.574154*10^{-5}&space;T^3&space;&plus;&space;0.326513*10^{-7}&space;T^4&space;-&space;0.142805*10^{-9}&space;T^5&space;\end{align*}" title="\begin{align*} Baw(T) &= 36.98928-0.331705T+0.139035*10^{-2} T^2\\ & - 0.574154*10^{-5} T^3 + 0.326513*10^{-7} T^4 - 0.142805*10^{-9} T^5 \end{align*}" /></a>
 
 **The simulation**
 The basic concept of the experiment is the following:
