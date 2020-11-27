@@ -5,7 +5,7 @@ from main import Read_Kayelaby_Speed
 
 def test_air_molar_mass_positive():
     Room = Environment()
-    assert Room.Molar_Mass() > 0
+    assert Room.Molar_Mass > 0
 
 @given(st.floats(250.,330.), st.floats(0,100))
 def test_xw_in_appropriate_range(T, RH):
