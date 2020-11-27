@@ -8,6 +8,8 @@ import scipy.misc as misc
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+
+
 """This is the module docstring
 """
 
@@ -44,7 +46,30 @@ class Environment ():
         Humidity inside the environment, expressed in %
     P_input: Float, optional
         Pressure inside the environment, expressed in Pa
+        
+    Attributes
+    ----------
+    Molar_Fraction : pd.DataFrame()
+        Dataframe storing data from Molar_Fraction_path
+    Air_Data : pd.DataFrame()
+        Dataframe storing data from Air_Data_path
+    Water_Data : pd.DataFrame()
+        Dataframe storing data from Water_Data_path
+    CO2_Data : pd.DataFrame()
+        Dataframe storing data from CO2_Data_path
+    draw_B_plots_in_B_fit : bool 
+        If True, B_fit method will plot graphs comparing experimental data and
+        fitting curve for Baa, Bww, Bcc
+    B_values : pd.DataFrame()
+        Dataframe storing B_fit optimal parameters
+    B_covariances : pd.DataFrame()
+        Dataframe storing B_fit optimal parameters covariances
+    Molar_Mass : float
+        Total molar mass of the gas, evaluated through Set_Molar_Mass
+    
     """
+
+    
 
     T_input: float = field(default = TEMP_0 + 25, metadata={'unit' : 'K'})
     H_input: float = field(default = 0.0, metadata={'unit' : '%'})
@@ -57,6 +82,7 @@ class Environment ():
     Air_Data = pd.DataFrame()
     Water_Data = pd.DataFrame()
     CO2_Data = pd.DataFrame()
+    draw_B_plots_in_B_fit = False
     B_values = pd.DataFrame()
     B_covariances = pd.DataFrame()
     Molar_Mass = float 
@@ -206,15 +232,10 @@ class Environment ():
                 - 0.142805E-9*T**5
                 )
 
-    def B_fit(draw: bool = False):
+    def B_fit():
         """Function which is executed as an instance of the class is created:
         it reads data from databases and fits them with the appropriate
         functions, to store the optimized parameters.
-
-        Parameters
-        ----------
-        draw : bool, optional
-            If True, the function will draw plots of the fits, default = False.
 
         Returns
         -------
@@ -246,17 +267,18 @@ class Environment ():
             popt, pcov = curve_fit(function, x, y, p0[i])
             Optimized_parameters.append(popt)
             Optimized_covariances.append(pcov)
-            if draw:
-                new_x = np.arange(273, 313, 0.5)
+            if Environment.draw_B_plots_in_B_fit:
+                new_x = np.arange(x[0], x[len(x)-1], 0.5)
                 new_y = function(new_x, popt[0], popt[1], popt[2])
-                fig,ax = plt.subplots(nrows = 1)
+                fig,ax = plt.subplots()
                 ax.tick_params(direction = 'in')
                 fig.set_figheight(6)
                 fig.set_figwidth(6)
-                sns.scatterplot(x, y, ax = ax, color = 'blue', label = 'data')
-                sns.lineplot(new_x, new_y, ax = ax,
-                            color = 'orange', label = 'fit')
-                plt.title(title[i])
+                sns.scatterplot(x = x, y = y, 
+                                color = 'blue', label = 'data')
+                sns.lineplot(x = new_x, y = new_y, 
+                             color = 'orange', label = 'fit')
+                plt.title(title[i]+str(popt))
                 ax.set_ylabel('B(T) (cm^3/mol)')
                 ax.set_xlabel('Temperature (K)')
         return Optimized_parameters, Optimized_covariances
@@ -280,12 +302,12 @@ class Environment ():
         xad = [float(EMF[EMF['Constituent'] == m]['xi']) for m in Molecules]
         Air_Molar_Mass = np.sum(Molar_Masses_xi)/np.sum(xad)
         Water_Molar_Mass = float(EMF[EMF['Constituent'] == 'H2O']['Mi'])
-        # CO2_Molar_Mass = float(EMF[EMF['Constituent'] == 'CO2']['Mi'])
-        # xcc = float(EMF[EMF['Constituent'] == 'CO2']['xi'])
+        CO2_Molar_Mass = float(EMF[EMF['Constituent'] == 'CO2']['Mi'])
+        xcc = float(EMF[EMF['Constituent'] == 'CO2']['xi'])
         xww = self.RH_to_Xw()
-        xaa = 1-xww#-xcc
-        Mass = Air_Molar_Mass*xaa + Water_Molar_Mass*xww# + CO2_Molar_Mass*xcc
-        return Mass
+        xaa = 1-xww-xcc
+        Mass = Air_Molar_Mass*xaa + Water_Molar_Mass*xww + CO2_Molar_Mass*xcc
+        return 1E-3*Mass
 
     def RH_to_Xw(self):
         """Conversion from relative humidity in % to water molar fraction,
@@ -335,7 +357,7 @@ class Environment ():
 
         Returns
         -------
-        gamma Float
+        gamma : Float or np.ndarray of Float
             Heat capacity ratio, adimensional.
 
         """
