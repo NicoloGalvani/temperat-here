@@ -8,13 +8,15 @@ import scipy.misc as misc
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+
+
 """This is the module docstring
 """
 
 TEMP_0 = 273.15 #K
 ATM_P = 101325 #Pa
-CP0 = 1.400 #to better check
-R = 8.31446261815324E6 #cm^3 Pa K^-1 mol^-1
+CP0 = 1.006E3 #j Kg^-1 K^-1
+R = 8.31446261815324 #m^3 Pa K^-1 mol^-1
 kayelaby = 'https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air'
 
 
@@ -46,6 +48,8 @@ class Environment ():
         Pressure inside the environment, expressed in Pa
     """
 
+    
+
     T_input: float = field(default = TEMP_0 + 25, metadata={'unit' : 'K'})
     H_input: float = field(default = 0.0, metadata={'unit' : '%'})
     P_input: float = field(default = ATM_P, metadata={'unit' : 'Pa'})
@@ -59,7 +63,7 @@ class Environment ():
     CO2_Data = pd.DataFrame()
     B_values = pd.DataFrame()
     B_covariances = pd.DataFrame()
-    Molar_Mass = float
+    Molar_Mass = float 
 
     ##Possibility to insert also the link to pyroomsound?
 
@@ -80,7 +84,7 @@ class Environment ():
             try:
                 Environment.Molar_Fraction = pd.read_csv(self.Molar_Fraction_path, sep=' ')
                 Environment.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
-                Environment.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ')
+                Environment.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ',header=1)
                 Environment.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
                 (Environment.B_values,
                  Environment.B_covariances) = Environment.B_fit()
@@ -195,8 +199,8 @@ class Environment ():
         return A - B/T * 10**(C/T**2)
 
     def B_aw(T: float or np.ndarray):
-        """Approximated function to evaluate Baw(T) in cm^3/mol, taken from 
-        Hyland"""
+        """Approximated function to evaluate Baw(T) in cm^3/mol, taken from
+        Hyland DOI: 10.6028/jres.079A.017."""
         return (
                 36.98928
                 - 0.331705*T
@@ -236,6 +240,8 @@ class Environment ():
                      Environment.Hyland,
                      Environment.Hyland]
         p0 = [[1, 1, 1], [21, 147, 100], [33.97, 55306, 72000]]
+                     Environment.Parabole]
+        p0 = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100]]
         title = ['Air', 'Water', 'CO2']
         Optimized_parameters = []
         Optimized_covariances = []
@@ -250,13 +256,15 @@ class Environment ():
                 new_x = np.arange(273, 313, 0.5)
                 new_y = function(new_x, popt[0], popt[1], popt[2])
                 fig,ax = plt.subplots(nrows = 1)
+                fig,ax = plt.subplots()
                 ax.tick_params(direction = 'in')
                 fig.set_figheight(6)
                 fig.set_figwidth(6)
-                sns.scatterplot(x, y, ax = ax, color = 'blue', label = 'data')
-                sns.lineplot(new_x, new_y, ax = ax,
-                            color = 'orange', label = 'fit')
-                plt.title(title[i])
+                sns.scatterplot(x = x, y = y, 
+                                color = 'blue', label = 'data')
+                sns.lineplot(x = new_x, y = new_y, 
+                             color = 'orange', label = 'fit')
+                plt.title(title[i]+str(popt))
                 ax.set_ylabel('B(T) (cm^3/mol)')
                 ax.set_xlabel('Temperature (K)')
         return Optimized_parameters, Optimized_covariances
@@ -280,12 +288,12 @@ class Environment ():
         xad = [float(EMF[EMF['Constituent'] == m]['xi']) for m in Molecules]
         Air_Molar_Mass = np.sum(Molar_Masses_xi)/np.sum(xad)
         Water_Molar_Mass = float(EMF[EMF['Constituent'] == 'H2O']['Mi'])
-        # CO2_Molar_Mass = float(EMF[EMF['Constituent'] == 'CO2']['Mi'])
-        # xcc = float(EMF[EMF['Constituent'] == 'CO2']['xi'])
+        CO2_Molar_Mass = float(EMF[EMF['Constituent'] == 'CO2']['Mi'])
+        xcc = float(EMF[EMF['Constituent'] == 'CO2']['xi'])
         xww = self.RH_to_Xw()
-        xaa = 1-xww#-xcc
-        Mass = Air_Molar_Mass*xaa + Water_Molar_Mass*xww# + CO2_Molar_Mass*xcc
-        return Mass
+        xaa = 1-xww-xcc
+        Mass = Air_Molar_Mass*xaa + Water_Molar_Mass*xww + CO2_Molar_Mass*xcc
+        return 1E-3*Mass
 
     def RH_to_Xw(self):
         """Conversion from relative humidity in % to water molar fraction,
@@ -314,7 +322,7 @@ class Environment ():
         Returns
         -------
         B_mix : float or np.ndarray
-            Second virial coefficient of the mixed gas, in dm^3/mol
+            Second virial coefficient of the mixed gas, in m^3/mol
         """
         EMF = Environment.Molar_Fraction
         EBV = Environment.B_values
@@ -323,10 +331,10 @@ class Environment ():
         xaa = (1-xcc-xww)
         Baa = Environment.Exponential(T,EBV[0][0],EBV[0][1],EBV[0][2])
         Bww = Environment.Hyland(T,EBV[1][0],EBV[1][2],EBV[1][2])
-        Bcc = Environment.Hyland(T,EBV[2][0],EBV[2][1],EBV[2][2])
+        Bcc = Environment.Parabole(T,EBV[2][0],EBV[2][1],EBV[2][2])
         Baw = Environment.B_aw(T)
         B_mix = Baa*xaa**2 + Bcc*xcc**2 + Bww*xww**2 + Baw*xaa*xww
-        return 0.001*B_mix         #conversion from cm^3/mol to dm^3/mol
+        return 1E-6*B_mix         #conversion from cm^3/mol to m^3/mol
 
     def Gamma(self):
         """This function determines the heat capacity ratio γ for the
@@ -335,17 +343,16 @@ class Environment ():
 
         Returns
         -------
-        gamma Float
+        gamma : Float or np.ndarray of Float
             Heat capacity ratio, adimensional.
 
         """
         #Gamma too high
-        # B = self.B_mix_function(self.T_input)
-        B_prime = misc.derivative(self.B_mix_function, 
-                                  self.T_input, dx=0.5, n=1)
-        B_second = misc.derivative(self.B_mix_function, 
-                                   self.T_input, dx=0.5, n=2)
-        M = Environment.Molar_Mass
+        B_prime = misc.derivative(self.B_mix_function,
+                                  self.T_input, dx=0.1, n=1) #m^3 mol^-1 K^-1
+        B_second = misc.derivative(self.B_mix_function,
+                                   self.T_input, dx=0.1, n=2) #m^3 mol^-1 K^-2
+        M = Environment.Molar_Mass #kg mol^-1
         cp1 = CP0 - self.P_input * self.T_input * B_second / M
         cv1 = cp1 - (R + 2*self.P_input*B_prime) / M
         gamma = cp1/cv1
@@ -358,7 +365,7 @@ class Environment ():
 
 
 def Read_Kayelaby_Speed():
-    """Function which reads speed of sound data from Kaye and Laby website and 
+    """Function which reads speed of sound data from Kaye and Laby website and
     store them into a dataframe for comparisons.
 
     Returns
@@ -386,7 +393,7 @@ def Read_Kayelaby_Speed():
     return Speed_DF
 
 def Read_Kayelaby_Attenuation():
-    """Function which reads attenuation frequency dependant data from Kaye and 
+    """Function which reads attenuation frequency dependant data from Kaye and
     Laby website and store them into a dataframe for comparisons.
 
     Returns
@@ -394,7 +401,7 @@ def Read_Kayelaby_Attenuation():
     Attenuation_DF : pandas.Dataframe
         Table of values of sound attenuation at varying temperature (from
         0 °C to 30 °C) and RH (from 10% to 90%), expressed in dB/km
-        
+
     """
     Attenuation_Table = pd.read_html(kayelaby)[9].dropna()
     Attenuation_DF = pd.DataFrame({
