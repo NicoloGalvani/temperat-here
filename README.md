@@ -44,13 +44,13 @@ B(T) is the contribute to Pressure due to 2-particle interactions:
 
 The equation is complicated by the necessity of modeling the intermolecular force Φ(r_{12}), so B is usually measured through experimental meaning and tabulated. There are many fitting equations to describe B as a function of T, and the code has four functions built-in:
 
-- Lennard: Taken from Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'. Using a (m-6) potential, which for m=12 becomes the Lennard-Jones Potential, to describe intermolecular force, it fits B faithfully to the analytical description. Actually it fails to converge in fitting properly.
+- Lennard: Taken from *Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'*. Using a (m-6) potential, which for m=12 becomes the Lennard-Jones Potential, to describe intermolecular force, it fits B faithfully to the analytical description. Actually it fails to converge in fitting properly.
 <a href="https://www.codecogs.com/eqnedit.php?latex=\Phi(r;m,s)=\frac{m&space;e}{m-6}(\frac{m}{6})^{\frac{6}{m-6}}[(\frac{s}{r})^m-(\frac{s}{r})^6]" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\Phi(r;m,s)=\frac{m&space;e}{m-6}(\frac{m}{6})^{\frac{6}{m-6}}[(\frac{s}{r})^m-(\frac{s}{r})^6]" title="\Phi(r;m,s)=\frac{m e}{m-6}(\frac{m}{6})^{\frac{6}{m-6}}[(\frac{s}{r})^m-(\frac{s}{r})^6]" /></a>
 
-- Exponential: taken from Cramer DOI: 10.1121/1.405827. Fits well dry-air CO2-free data.
+- Exponential: taken from *Cramer DOI: 10.1121/1.405827*. Fits well dry-air CO2-free data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;-&space;b&space;e^{\frac{c}{T}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;-&space;b&space;e^{\frac{c}{T}}" title="B(T) = a - b e^{\frac{c}{T}}" /></a>
 
-- Hyland:  taken from Hyland DOI:10.6028/jres.079A.017. Fits well water vapor data.
+- Hyland:  taken from *Hyland DOI:10.6028/jres.079A.017*. Fits well water vapor data.
 <a href="https://www.codecogs.com/eqnedit.php?latex=B(T)&space;=&space;a&space;-&space;\frac{b}{T}&space;10^{\frac{c}{T^2}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?B(T)&space;=&space;a&space;-&space;\frac{b}{T}&space;10^{\frac{c}{T^2}}" title="B(T) = a - \frac{b}{T} 10^{\frac{c}{T^2}}" /></a>
 
 - Simple parabola: provides the rougher -but faster- fits for the data, good for CO2 data.
@@ -82,11 +82,23 @@ The speed cφ can then be evaluated as simply as <a href="https://www.codecogs.c
 
 
 # How: the code
-Class Environment has instances which resembles a space where temperature, humidity and pressure are homogeneous and constant. It should:
-    -read experimental datas, and process them in order to estimate the dependance c(T,H,P)
-    -study how uncertainties propagate, handling them with package 'uncertainties' https://pythonhosted.org/uncertainties/
-    -simulate how a real ambience would affect such a measurements, including considerations regarding frequency, absorption and sound analysis with package 'pyroomacoustics' https://github.com/LCAV/pyroomacoustics
-    -combine the previous considerations
+Class Environment has instances which resembles a space where temperature, humidity and pressure are homogeneous and constant. The first time an instance is created:
+
+-It reads experimental data regarding air composition (*Cramer DOI: 10.1121/1.405827*), speed of sound in air (*Kaye and Laby*), sound attenuation frequency dependent (*Kaye and Laby*), and the second virial coefficient of three gases: dry air CO2 free, CO2, water vapor (taken from *Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'* for the first and the second, from *Allan H. Harveya and Eric W. Lemmon "Correlation for the Second Virial Coefficient of Water"* the third). They are stored into databases and saved as class attributes.
+
+-It evaluates the Molar Mass of the gas and stores it as a class attribute.
+
+-It fits the second virial coefficients with appropriate functions and stores the optimal parameters and covariances as class attirbutes.
+
+These data will then be used for each instance to evaluate the mixing second virial coefficient Bmix(T,P,RH) and the adiabatic constant γ(T,P,RH), which are sufficient to evaluate c0(T,P,RH).
+Two options to have T(c0,P,RH): approximate Bmix with a simplier analytic function, which brings an evaluable expression also for T; tabulate with high precision c0(T,P,RH), and compare the measurement of c0 with the table.
+
+After having tested that this procedure works, next steps will be:
+
+-To study how uncertainties propagate from the experimental data to final evaluations, handling them with package 'uncertainties' https://pythonhosted.org/uncertainties/.
+
+-To simulate how a real ambience would affect such a measurements, including considerations regarding frequency, absorption and sound analysis with package 'pyroomacoustics' https://github.com/LCAV/pyroomacoustics.
+
 
 # Who: contributions?
 This project will be used to test my capabilites in writing python, both in the form and in the content: this implicates that the work should be done only by myself. Nonetheless, the project can be followed by anyone in the making, and after the evaluation it will be opened to community's contributions.
