@@ -46,6 +46,27 @@ class Environment ():
         Humidity inside the environment, expressed in %
     P_input: Float, optional
         Pressure inside the environment, expressed in Pa
+        
+    Attributes
+    ----------
+    Molar_Fraction : pd.DataFrame()
+        Dataframe storing data from Molar_Fraction_path
+    Air_Data : pd.DataFrame()
+        Dataframe storing data from Air_Data_path
+    Water_Data : pd.DataFrame()
+        Dataframe storing data from Water_Data_path
+    CO2_Data : pd.DataFrame()
+        Dataframe storing data from CO2_Data_path
+    draw_B_plots_in_B_fit : bool 
+        If True, B_fit method will plot graphs comparing experimental data and
+        fitting curve for Baa, Bww, Bcc
+    B_values : pd.DataFrame()
+        Dataframe storing B_fit optimal parameters
+    B_covariances : pd.DataFrame()
+        Dataframe storing B_fit optimal parameters covariances
+    Molar_Mass : float
+        Total molar mass of the gas, evaluated through Set_Molar_Mass
+    
     """
 
     
@@ -61,6 +82,7 @@ class Environment ():
     Air_Data = pd.DataFrame()
     Water_Data = pd.DataFrame()
     CO2_Data = pd.DataFrame()
+    draw_B_plots_in_B_fit = False
     B_values = pd.DataFrame()
     B_covariances = pd.DataFrame()
     Molar_Mass = float 
@@ -210,15 +232,10 @@ class Environment ():
                 - 0.142805E-9*T**5
                 )
 
-    def B_fit(draw: bool = False):
+    def B_fit():
         """Function which is executed as an instance of the class is created:
         it reads data from databases and fits them with the appropriate
         functions, to store the optimized parameters.
-
-        Parameters
-        ----------
-        draw : bool, optional
-            If True, the function will draw plots of the fits, default = False.
 
         Returns
         -------
@@ -238,8 +255,6 @@ class Environment ():
                 Environment.CO2_Data]
         functions = [Environment.Exponential,
                      Environment.Hyland,
-                     Environment.Hyland]
-        p0 = [[1, 1, 1], [21, 147, 100], [33.97, 55306, 72000]]
                      Environment.Parabole]
         p0 = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100]]
         title = ['Air', 'Water', 'CO2']
@@ -252,10 +267,9 @@ class Environment ():
             popt, pcov = curve_fit(function, x, y, p0[i])
             Optimized_parameters.append(popt)
             Optimized_covariances.append(pcov)
-            if draw:
-                new_x = np.arange(273, 313, 0.5)
+            if Environment.draw_B_plots_in_B_fit:
+                new_x = np.arange(x[0], x[len(x)-1], 0.5)
                 new_y = function(new_x, popt[0], popt[1], popt[2])
-                fig,ax = plt.subplots(nrows = 1)
                 fig,ax = plt.subplots()
                 ax.tick_params(direction = 'in')
                 fig.set_figheight(6)
@@ -279,7 +293,7 @@ class Environment ():
         Returns
         -------
         Mass : float
-            Molar mass of dry air CO2 free, water vapor and CO2 in g/mol
+            Molar mass of dry air CO2 free, water vapor and CO2 in kg/mol
         """
         Molecules = ['N2', 'O2', 'Ar', 'Ne','CO']
         EMF = Environment.Molar_Fraction
@@ -309,8 +323,8 @@ class Environment ():
                                                   )
         f = 1.00062 + 3.14E-8*self.P_input + 5.6E-7*self.T_input**2 #Enhance factor
         return self.H_input/100 * f * Saturated_Vapor_Pressure/self.P_input
-
-    def B_mix_function(self, T: float or np.ndarray):
+    
+    def B_mix_function(self, T: float or np.ndarray): #Decreases too much with RH
         """Evaluates the composed B at the environment temperature.
         Something about the theory.
 
@@ -333,7 +347,7 @@ class Environment ():
         Bww = Environment.Hyland(T,EBV[1][0],EBV[1][2],EBV[1][2])
         Bcc = Environment.Parabole(T,EBV[2][0],EBV[2][1],EBV[2][2])
         Baw = Environment.B_aw(T)
-        B_mix = Baa*xaa**2 + Bcc*xcc**2 + Bww*xww**2 + Baw*xaa*xww
+        B_mix = Baa*xaa**2 + Bcc*xcc**2 + Bww*xww**2 + 2*Baw*(xaa+xcc)*xww
         return 1E-6*B_mix         #conversion from cm^3/mol to m^3/mol
 
     def Gamma(self):
