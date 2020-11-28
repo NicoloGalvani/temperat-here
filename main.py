@@ -46,7 +46,7 @@ class Environment ():
         Humidity inside the environment, expressed in %
     P_input: Float, optional
         Pressure inside the environment, expressed in Pa
-        
+
     Attributes
     ----------
     Molar_Fraction : pd.DataFrame()
@@ -57,7 +57,7 @@ class Environment ():
         Dataframe storing data from Water_Data_path
     CO2_Data : pd.DataFrame()
         Dataframe storing data from CO2_Data_path
-    draw_B_plots_in_B_fit : bool 
+    draw_B_plots_in_B_fit : bool
         If True, B_fit method will plot graphs comparing experimental data and
         fitting curve for Baa, Bww, Bcc
     B_values : pd.DataFrame()
@@ -66,10 +66,10 @@ class Environment ():
         Dataframe storing B_fit optimal parameters covariances
     Molar_Mass : float
         Total molar mass of the gas, evaluated through Set_Molar_Mass
-    
+
     """
 
-    
+
 
     T_input: float = field(default = TEMP_0 + 25, metadata={'unit' : 'K'})
     H_input: float = field(default = 0.0, metadata={'unit' : '%'})
@@ -85,7 +85,7 @@ class Environment ():
     draw_B_plots_in_B_fit = False
     B_values = pd.DataFrame()
     B_covariances = pd.DataFrame()
-    Molar_Mass = float 
+    Molar_Mass = float
 
     ##Possibility to insert also the link to pyroomsound?
 
@@ -274,9 +274,9 @@ class Environment ():
                 ax.tick_params(direction = 'in')
                 fig.set_figheight(6)
                 fig.set_figwidth(6)
-                sns.scatterplot(x = x, y = y, 
+                sns.scatterplot(x = x, y = y,
                                 color = 'blue', label = 'data')
-                sns.lineplot(x = new_x, y = new_y, 
+                sns.lineplot(x = new_x, y = new_y,
                              color = 'orange', label = 'fit')
                 plt.title(title[i]+str(popt))
                 ax.set_ylabel('B(T) (cm^3/mol)')
@@ -323,7 +323,7 @@ class Environment ():
                                                   )
         f = 1.00062 + 3.14E-8*self.P_input + 5.6E-7*self.T_input**2 #Enhance factor
         return self.H_input/100 * f * Saturated_Vapor_Pressure/self.P_input
-    
+
     def B_mix_function(self, T: float or np.ndarray): #Decreases too much with RH
         """Evaluates the composed B at the environment temperature.
         Something about the theory.
@@ -436,4 +436,3 @@ def Read_Kayelaby_Attenuation():
         Attenuation_DF = pd.concat([Attenuation_DF,Fixed_RH]).astype(float)
         Attenuation_DF = Attenuation_DF.reset_index(drop = True)
         return Attenuation_DF
-    
