@@ -24,6 +24,8 @@ where density has been substituted (valid in low density-high volume regime) acc
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=\rho&space;=&space;\frac{1}{V}&space;=&space;\frac{P}{R&space;T}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\rho&space;=&space;\frac{1}{V}&space;=&space;\frac{P}{R&space;T}" title="\rho = \frac{1}{V} = \frac{P}{R T}" /></a>
 
+From the ratio of Cp and Cv it is evaluated the adiabatic constant, γ.
+
 c at 0 frequency is defined as:
 
 
