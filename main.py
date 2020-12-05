@@ -40,6 +40,9 @@ class Environment ():
     CO2_Data_path: Path, optional
         Path containing CO2 B parameter at varying T, written as a
         csv-space-separated.
+    Moist_Air_Data_path: Path, optional
+        Path containing moist-air Baw parameter at varying T, written as a
+        csv-space-separated.
     T_input: Float, optional
         Temperature inside the environment, expressed in K
     H_input: Float, optional
@@ -57,6 +60,8 @@ class Environment ():
         Dataframe storing data from Water_Data_path
     CO2_Data : pd.DataFrame()
         Dataframe storing data from CO2_Data_path
+    Moist_Air_Data: pd.DataFrame()
+        Dataframe storing data from Moist_Air_Data_path
     draw_B_plots_in_B_fit : bool
         If True, B_fit method will plot graphs comparing experimental data and
         fitting curve for Baa, Bww, Bcc
@@ -78,10 +83,12 @@ class Environment ():
     Air_Data_path: Path = field(default = 'Data/Dry_Air.txt')
     Water_Data_path: Path = field(default = 'Data/H2O.txt')
     CO2_Data_path: Path = field(default = 'Data/CO2.txt')
+    Moist_Air_Data_path: Path = field(default = 'Data/Moist_Air.txt')
     Molar_Fraction = pd.DataFrame()
     Air_Data = pd.DataFrame()
     Water_Data = pd.DataFrame()
     CO2_Data = pd.DataFrame()
+    Moist_Air_Data = pd.DataFrame()
     draw_B_plots_in_B_fit = False
     B_values = pd.DataFrame()
     B_covariances = pd.DataFrame()
@@ -108,6 +115,7 @@ class Environment ():
                 Environment.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
                 Environment.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ',header=1)
                 Environment.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
+                Environment.Moist_Air_Data = pd.read_csv(self.Air_Data_path, sep=' ',header=3)
                 (Environment.B_values,
                  Environment.B_covariances) = Environment.B_fit()
                 Environment.Molar_Mass = self.Set_Molar_Mass()
@@ -222,7 +230,9 @@ class Environment ():
 
     def B_aw(T: float or np.ndarray):
         """Approximated function to evaluate Baw(T) in cm^3/mol, taken from
-        Hyland DOI: 10.6028/jres.079A.017."""
+        Hyland DOI: 10.6028/jres.079A.017.
+        Deprecated, substituted by data from Hellmann 
+        DOI: 10.1021/acs.jced.0c00465"""
         return (
                 36.98928
                 - 0.331705*T
@@ -252,12 +262,14 @@ class Environment ():
 
         Data = [Environment.Air_Data,
                 Environment.Water_Data,
-                Environment.CO2_Data]
+                Environment.CO2_Data,
+                Environment.Moist_Air_Data,]
         functions = [Environment.Exponential,
                      Environment.Hyland,
+                     Environment.Parabole,
                      Environment.Parabole]
-        p0 = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100]]
-        title = ['Air', 'Water', 'CO2']
+        p0 = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100], [21, 147, 100]]
+        title = ['Air', 'Water', 'CO2', 'Moist']
         Optimized_parameters = []
         Optimized_covariances = []
         for i,D in enumerate(Data):
@@ -346,7 +358,7 @@ class Environment ():
         Baa = Environment.Exponential(T,EBV[0][0],EBV[0][1],EBV[0][2])
         Bww = Environment.Hyland(T,EBV[1][0],EBV[1][2],EBV[1][2])
         Bcc = Environment.Parabole(T,EBV[2][0],EBV[2][1],EBV[2][2])
-        Baw = Environment.B_aw(T)
+        Baw = Environment.Parabole(T,EBV[3][0],EBV[3][1],EBV[3][2])
         B_mix = Baa*xaa**2 + Bcc*xcc**2 + Bww*xww**2 + 2*Baw*(xaa+xcc)*xww
         return 1E-6*B_mix         #conversion from cm^3/mol to m^3/mol
 
@@ -370,6 +382,7 @@ class Environment ():
         cp1 = CP0 - self.P_input * self.T_input * B_second / M
         cv1 = cp1 - (R + 2*self.P_input*B_prime) / M
         gamma = cp1/cv1
+        return gamma
 
     def Sound_Speed(self):
         """Mockup function, used now for testing, later implemented.
