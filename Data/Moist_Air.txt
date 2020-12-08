@@ -1,17 +1,17 @@
-data from R. Hellman Reference Values for the Cross Second Virial Coefficients and Dilute
-Gas Binary Diffusion Coefficients of the Systems (H2O + O2) and (H2O
-+ Air) from First Principles DOI: 10.1021/acs.jced.0c00465
-T,K Bwo,cm^3/mol u,cm^3/mol B,cm^3/mol uaw,cm^3/mol
-150 −109.2 4.4 −142.7 5.7
-160 −96.78 3.9 −124.4 5.0
-170 −86.29 3.5 −109.5 4.4
-180 −77.33 3.1 −97.08 3.9
-190 −69.60 2.8 −86.57 3.5
-200 −62.86 2.5 −77.57 3.1
-220 −51.69 2.1 −62.99 2.5
-240 −42.82 2.0 −51.69 2.1
-260 −35.62 2.0 −42.69 2.0
-280 −29.67 2.0 −35.37 2.0
-300 −24.67 2.0 −29.30 2.0
-350 −15.10 2.0 −17.91 2.0
-400 −8.32 2.0 −10.00 2.0
+#data from R. Hellman Reference Values for the Cross Second Virial Coefficients and Dilute
+#Gas Binary Diffusion Coefficients of the Systems (H2O + O2) and (H2O
+#+ Air) from First Principles DOI: 10.1021/acs.jced.0c00465
+T,K B,cm^3/mol uaw,cm^3/mol
+150 -142.7 5.7
+160 -124.4 5.0
+170 -109.5 4.4
+180 -97.08 3.9
+190 -86.57 3.5
+200 -77.57 3.1
+220 -62.99 2.5
+240 -51.69 2.1
+260 -42.69 2.0
+280 -35.37 2.0
+300 -29.30 2.0
+350 -17.91 2.0
+400 -10.00 2.0

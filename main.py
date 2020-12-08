@@ -115,7 +115,7 @@ class Environment ():
                 Environment.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
                 Environment.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ',header=1)
                 Environment.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
-                Environment.Moist_Air_Data = pd.read_csv(self.Air_Data_path, sep=' ',header=3)
+                Environment.Moist_Air_Data = pd.read_csv(self.Moist_Air_Data_path, sep=' ',header=3)
                 (Environment.B_values,
                  Environment.B_covariances) = Environment.B_fit()
                 Environment.Molar_Mass = self.Set_Molar_Mass()
@@ -231,7 +231,7 @@ class Environment ():
     def B_aw(T: float or np.ndarray):
         """Approximated function to evaluate Baw(T) in cm^3/mol, taken from
         Hyland DOI: 10.6028/jres.079A.017.
-        Deprecated, substituted by data from Hellmann 
+        Deprecated, substituted by data from Hellmann
         DOI: 10.1021/acs.jced.0c00465"""
         return (
                 36.98928
@@ -267,7 +267,7 @@ class Environment ():
         functions = [Environment.Exponential,
                      Environment.Hyland,
                      Environment.Parabole,
-                     Environment.Parabole]
+                     Environment.Hyland]
         p0 = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100], [21, 147, 100]]
         title = ['Air', 'Water', 'CO2', 'Moist']
         Optimized_parameters = []
@@ -358,8 +358,8 @@ class Environment ():
         Baa = Environment.Exponential(T,EBV[0][0],EBV[0][1],EBV[0][2])
         Bww = Environment.Hyland(T,EBV[1][0],EBV[1][2],EBV[1][2])
         Bcc = Environment.Parabole(T,EBV[2][0],EBV[2][1],EBV[2][2])
-        Baw = Environment.Parabole(T,EBV[3][0],EBV[3][1],EBV[3][2])
-        B_mix = Baa*xaa**2 + Bcc*xcc**2 + Bww*xww**2 + 2*Baw*(xaa+xcc)*xww
+        Baw = Environment.Hyland(T,EBV[3][0],EBV[3][1],EBV[3][2])#Environment.B_aw(T)#
+        B_mix = Baa*xaa**2 + Bcc*xcc**2 + Bww*xww**2 + 2*Baw*xaa*xww
         return 1E-6*B_mix         #conversion from cm^3/mol to m^3/mol
 
     def Gamma(self):
