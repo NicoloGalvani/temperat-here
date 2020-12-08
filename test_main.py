@@ -21,7 +21,7 @@ def test_sound_speed_positive(T, RH, P):
     assert Room.Sound_Speed() > 0
 
 def test_sound_speed_compatible_with_data():
-    Precision = 8 #will be reduced when a true Sound_Speed function will be implemented
+    Precision = 3 #will be reduced when a true Sound_Speed function will be implemented
     Data = Read_Kayelaby_Speed()
     for i in range(len(Data)):
         T_K = Data['Temperature (°C)'][i] + 273.15

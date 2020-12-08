@@ -385,9 +385,20 @@ class Environment ():
         return gamma
 
     def Sound_Speed(self):
-        """Mockup function, used now for testing, later implemented.
+        """Evaluates 0 frequency sound speed c approximated to the second virial
+        term, following Cramer's tractation.
+
+        Returns
+        -------
+        c0 : float or np.ndarray
+            c at 0 frequency, in m/s
         """
-        return 20.5*np.sqrt(self.T_input)
+        B = self.B_mix_function(self.T_input)
+        gamma = self.Gamma()
+        M = Environment.Molar_Mass
+        T = self.T_input
+        c0 = np.sqrt(gamma/M * (T*R + 2*self.P_input*B))
+        return c0
 
 
 
