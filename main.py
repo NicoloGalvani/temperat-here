@@ -67,8 +67,8 @@ class Environment ():
         fitting curve for Baa, Bww, Bcc
     B_values : pd.DataFrame()
         Dataframe storing B_fit optimal parameters
-    B_covariances : pd.DataFrame()
-        Dataframe storing B_fit optimal parameters covariances
+    B_deviations : pd.DataFrame()
+        Dataframe storing B_fit optimal parameters standard deviations
     Molar_Mass : float
         Total molar mass of the gas, evaluated through Set_Molar_Mass
 
@@ -91,9 +91,8 @@ class Environment ():
     Moist_Air_Data = pd.DataFrame()
     draw_B_plots_in_B_fit = False
     B_values = pd.DataFrame()
-    B_covariances = pd.DataFrame()
+    B_deviations = pd.DataFrame()
     Molar_Mass = float
-
     ##Possibility to insert also the link to pyroomsound?
 
     def __post_init__(self):
@@ -252,14 +251,13 @@ class Environment ():
 
         Returns
         -------
-        Optimized_parameters: 3x3 np.ndarray of floats
+        Optimized_parameters: 3D np.ndarray of floats
             Optimal values for the parameters so that the sum of the squared
             residuals of f(xdata, *popt) - ydata is minimized; of respectively
             Baa, Bww, Bcc.
 
-        Optimized_covariances: 3x3x3 np.ndarray of floats
-            The estimated covariance of Optimized_parameters.
-            The diagonals provide the variance of the parameter estimate.
+        Optimized_deviations: 3D np.ndarray of floats
+            The estimated standard deviations of Optimized_parameters.
 
         """
 
@@ -274,14 +272,15 @@ class Environment ():
         p0 = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100], [21, 147, 100]]
         title = ['Air', 'Water', 'CO2', 'Moist']
         Optimized_parameters = []
-        Optimized_covariances = []
+        Optimized_deviations = []
         for i,D in enumerate(Data):
             function = functions[i]
             x = D['T,K']
             y = D['B,cm^3/mol']
-            popt, pcov = curve_fit(function, x, y, p0[i])
+            erry = D['uB,cm^3/mol']
+            popt, pcov = curve_fit(function, x, y, p0[i], sigma=erry)
             Optimized_parameters.append(popt)
-            Optimized_covariances.append(pcov)
+            Optimized_deviations.append(np.sqrt(np.diag(pcov))/popt)
             if Environment.draw_B_plots_in_B_fit:
                 new_x = np.arange(x[0], x[len(x)-1], 0.5)
                 new_y = function(new_x, popt[0], popt[1], popt[2])
@@ -296,7 +295,7 @@ class Environment ():
                 plt.title(title[i]+str(popt))
                 ax.set_ylabel('B(T) (cm^3/mol)')
                 ax.set_xlabel('Temperature (K)')
-        return Optimized_parameters, Optimized_covariances
+        return Optimized_parameters, Optimized_deviations
 
 
 
