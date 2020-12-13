@@ -111,17 +111,20 @@ class Environment ():
         """
         if Environment.Molar_Fraction.empty:
             try:
-                Environment.Molar_Fraction = pd.read_csv(self.Molar_Fraction_path, sep=' ')
-                Environment.Air_Data = pd.read_csv(self.Air_Data_path, sep=' ')
-                Environment.Water_Data = pd.read_csv(self.Water_Data_path, sep=' ',header=1)
-                Environment.CO2_Data = pd.read_csv(self.CO2_Data_path, sep=' ')
-                Environment.Moist_Air_Data = pd.read_csv(self.Moist_Air_Data_path, sep=' ',header=3)
-                (Environment.B_values,
-                 Environment.B_covariances) = Environment.B_fit()
-                Environment.Molar_Mass = self.Set_Molar_Mass()
+                Environment.Molar_Fraction = pd.read_csv(self.Molar_Fraction_path,
+                                                         sep=' ')
+                Environment.Air_Data = pd.read_csv(self.Air_Data_path,
+                                                   sep=' ', header=2)
+                Environment.Water_Data = pd.read_csv(self.Water_Data_path, 
+                                                     sep=' ', header=1)
+                Environment.CO2_Data = pd.read_csv(self.CO2_Data_path, 
+                                                   sep=' ', header=3)
+                Environment.Moist_Air_Data = pd.read_csv(self.Moist_Air_Data_path,
+                                                         sep=' ', header=3)
             except:
                 raise FileNotFoundError("Unable to find the reference data")
-
+            Environment.B_values, Environment.B_deviations = Environment.B_fit()
+            Environment.Molar_Mass = self.Set_Molar_Mass()
 
 
 #Does not converge for Dry Air, to fix

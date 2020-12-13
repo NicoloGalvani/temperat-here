@@ -1,3 +1,5 @@
+Data taken from Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature
+relationships of gases-virial coefficients.'
 T,K B,cm^3/mol TdB/dT,cm^3/mol T^2d^2B/dT^2,cm^3/mol uB,cm^3/mol
 200.00 -39.3 102 -248 1.2
 210.00 -34.5 95 -230 1.2
