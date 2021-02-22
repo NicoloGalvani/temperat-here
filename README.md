@@ -1,10 +1,9 @@
 # Temperat-here
-A python project for Unibo's course in Software and Computing in Applied Physics 
-This project aims to study how sound's speed c depends on the temperature, humidity and pressure of air, with a focus on the propagation of uncertainties; taking as main reference the article "The variation of the specific heat ratio and the speed of sound in air with temperature, pressure, humidity, and CO2 concentration", by O.Cramer. 
-The final goal is to simulate an experimental apparatus which measures c and employs it to evaluate T. 
+Sound's speed in air depends on temperature, humidity and pressure; fixing the latter parameters it is possible to use sounds as a temperature probe. This project inspects the error propagation in this type of measurements, taking as reference the article "The variation of the specific heat ratio and the speed of sound in air with temperature, pressure, humidity, and CO2 concentration", by O.Cramer. 
 
 
-# What: the theory
+Theory
+-
 
 **Speed of sound**
 The equation of state for a real gas with reference to density ρ, truncated to the second virial term, appears as:
@@ -83,8 +82,16 @@ The speed cφ can then be evaluated as simply as <a href="https://www.codecogs.c
 <a href="https://ibb.co/18vLVSg"><img src="https://i.ibb.co/18vLVSg/Basic-space-confguration-1.png" alt="Basic-space-confguration-1" border="0"></a>
 
 
-# How: the code
-Class Environment has instances which resembles a space where temperature, humidity and pressure are homogeneous and constant. The first time an instance is created:
+Code structure:
+-
+The project is composed by the following blocks:
+-the file env.py: contains the definition of Environment class, which resembles a space where temperature, humidity and pressure are homogeneous and constant. It contains the method necessary to link c to the three input parameters.
+-the folder Data: contains the input for Environment class, the experimental data of air composition and the second virial coefficients of its main components; each file specifies the source paper.
+-the file test_env.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
+-the file main.py: simulates an experimental apparatus, which registers the time delay between the production of sound by a speaker and its collection by a microphone put at a chosen distance, measures c, and evaluates the room's temperature.
+
+**Environment class**
+The first time an instance is created:
 
 -It reads experimental data regarding air composition (*Cramer DOI: 10.1121/1.405827*), speed of sound in air (*Kaye and Laby*), sound attenuation frequency dependent (*Kaye and Laby*), and the second virial coefficient of three gases: dry air CO2 free, CO2, water vapor (taken from *Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'* for the first and the second, from *Allan H. Harveya and Eric W. Lemmon "Correlation for the Second Virial Coefficient of Water"* the third). They are stored into databases and saved as class attributes.
 
@@ -95,13 +102,11 @@ Class Environment has instances which resembles a space where temperature, humid
 These data will then be used for each instance to evaluate the mixing second virial coefficient Bmix(T,P,RH) and the adiabatic constant γ(T,P,RH), which are sufficient to evaluate c0(T,P,RH).
 Two options to have T(c0,P,RH): approximate Bmix with a simplier analytic function, which brings an evaluable expression also for T; tabulate with high precision c0(T,P,RH), and compare the measurement of c0 with the table.
 
+
+
 After having tested that this procedure works, next steps will be:
 
 -To study how uncertainties propagate from the experimental data to final evaluations, handling them with package 'uncertainties' https://pythonhosted.org/uncertainties/.
 
 -To simulate how a real ambience would affect such a measurements, including considerations regarding frequency, absorption and sound analysis with package 'pyroomacoustics' https://github.com/LCAV/pyroomacoustics.
 
-
-# Who: contributions?
-This project will be used to test my capabilites in writing python, both in the form and in the content: this implicates that the work should be done only by myself. Nonetheless, the project can be followed by anyone in the making, and after the evaluation it will be opened to community's contributions.
- 
