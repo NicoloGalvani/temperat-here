@@ -16,7 +16,7 @@ import seaborn as sns
 
 TEMP_0 = 273.15 #K
 ATM_P = 101325 #Pa
-CP0 = 1.006E3 #j Kg^-1 K^-1
+CP1_STP = 1.0057E3 #CP0 = 1.006E3 #j Kg^-1 K^-1
 R = 8.31446261815324 #m^3 Pa K^-1 mol^-1
 
 #fitting functions
@@ -62,7 +62,7 @@ def lennard (temp: float or np.ndarray, par_m: int, par_e: float, par_s: float):
         potential = amplitude * (repulsive - attractive)
         return 1 - np.exp(-potential/temp)
     int_0_inf = (lambda t: integrate.quad(
-            (lambda x: integrand(x, t, par_m, par_e, par_s)), 0.01, np.inf)[0])
+            (lambda x: integrand(x, t, par_m, par_e, par_s)), 0.1, np.inf)[0])
     if isinstance(temp, float):
         return 0.5 * int_0_inf(temp)
     return np.array([0.5 * int_0_inf(t) for t in temp])
@@ -167,8 +167,8 @@ def b_fit(draw: bool = True):
         if draw:
             new_temp = np.arange(273, 313, 0.5)
             new_b = function_list[i](new_temp, *popt)
-            plt.figure(figsize=(6,6))
-            axis = plt.axis()
+            fig = plt.figure(figsize=(6,6))
+            axis = fig.add_subplot(111)
             axis.set(xlabel = 'Temperature (K)', ylabel = 'B(T) (cm^3/mol)',
                      title = title[i]+str(popt))
             axis.tick_params(direction = 'in')
@@ -226,11 +226,14 @@ class Environment ():
             water_data_path = 'Data/H2O.txt'
             co2_data_path = 'Data/CO2.txt'
             try:
-                Environment.molar_fraction = pd.read_csv(
-                                            molar_fraction_path, sep=' ')
-                Environment.b_data = [pd.read_csv(air_data_path, sep=' '),
-                                      pd.read_csv(water_data_path, sep=' '),
-                                      pd.read_csv(co2_data_path, sep=' ')]
+                Environment.molar_fraction = pd.read_csv(molar_fraction_path,
+                                                  sep=' ', header=0)
+                Environment.b_data = [pd.read_csv(air_data_path, sep=' ',
+                                                  header=0),
+                                      pd.read_csv(water_data_path, sep=' ', 
+                                                  header=1),
+                                      pd.read_csv(co2_data_path, sep=' ', 
+                                                  header=0)]
                 #Added https://pubs.acs.org/doi/pdf/10.1021/je60069a019
                 Environment.b_results = b_fit()
                 Environment.molar_mass = self.set_molar_mass()
@@ -292,7 +295,7 @@ class Environment ():
             Second virial coefficient of the mixed gas, in m^3/mol
         """
         emf = Environment.molar_fraction
-        eb_vals,  = Environment.b_results
+        eb_vals, eb_cov  = Environment.b_results
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
         xww = self.rh_to_xw()
         xaa = (1-xcc-xww)
@@ -319,7 +322,7 @@ class Environment ():
         b_second = misc.derivative(self.b_mix_function,
                                    self.t_input, dx=0.1, n=2) #m^3 mol^-1 K^-2
         mass = Environment.molar_mass #kg mol^-1
-        cp1 = CP0 - self.p_input * self.t_input * b_second / mass
+        cp1 = CP1_STP - self.p_input * (self.t_input - TEMP_0) * b_second / mass
         cv1 = cp1 - (R + 2*self.p_input*b_prime) / mass
         gamma = cp1/cv1
         return gamma #Decreases too much with RH
@@ -333,4 +336,6 @@ class Environment ():
         temp = self.t_input
         c_0 = np.sqrt(gamma/mass * (temp*R + 2*self.p_input*b_temp))
         return c_0
-    
+
+room = Environment()
+s = room.sound_speed()
