@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Jun  6 10:05:06 2021
-
-@author: Nicolò Galvani
+"""Environment class simulates a volume of air in which temperature, pressure
+and humidity are constant and homogeneous. Its elements take these parameters
+as inputs, to determine a set of properties for the gas, in particular the
+speed of sound.
 """
 
 # from pathlib import Path
@@ -15,19 +14,10 @@ import scipy.misc as misc
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-
-"""Environment class simulates a volume of air in which temperature, pressure
-and humidity are constant and homogeneous. Its elements take these parameters
-as inputs, to determine a set of properties for the gas, in particular the
-speed of sound.
-"""
-
 TEMP_0 = 273.15 #K
 ATM_P = 101325 #Pa
 CP0 = 1.006E3 #j Kg^-1 K^-1
 R = 8.31446261815324 #m^3 Pa K^-1 mol^-1
-KL_URL = ('https://web.archive.org/web/20190508003406/http://www.kayelaby.npl'
-          +'.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air')
 
 #fitting functions
 
@@ -170,8 +160,8 @@ def b_fit(draw: bool = True):
     optimized_parameters = []
     optimized_covariances = []
     for i, data in enumerate(data_list):
-        popt, pcov = curve_fit(function_list[i], data['T,K'], data['B,cm^3/mol'],
-                               p0_list[i])
+        popt, pcov = curve_fit(function_list[i], data['T,K'], # pylint: disable=unbalanced-tuple-unpacking
+                               data['B,cm^3/mol'], p0_list[i])
         optimized_parameters.append(popt)
         optimized_covariances.append(pcov)
         if draw:
@@ -212,8 +202,7 @@ class Environment ():
     p_input: float = field(default = ATM_P, metadata={'unit' : 'Pa'})
     molar_fraction = pd.DataFrame()
     b_data = pd.DataFrame()
-    b_values = pd.DataFrame()
-    b_covariances = pd.DataFrame()
+    b_results = list#pd.DataFrame() b_covariances = pd.DataFrame()
     molar_mass = float
 
     ##Possibility to insert also the link to pyroomsound?
@@ -243,11 +232,11 @@ class Environment ():
                                       pd.read_csv(water_data_path, sep=' '),
                                       pd.read_csv(co2_data_path, sep=' ')]
                 #Added https://pubs.acs.org/doi/pdf/10.1021/je60069a019
-                Environment.b_values, Environment.b_covariances = b_fit()
+                Environment.b_results = b_fit()
                 Environment.molar_mass = self.set_molar_mass()
             except FileNotFoundError as fnne:
-                raise FileNotFoundError("Unable to find the reference data"
-                                        ) from fnne
+                raise FileNotFoundError("Check that input data are in " +
+                                        "Data/ folder") from fnne
 
     def set_molar_mass(self):
         """Evaluates molar mass of the air components from Molar Fraction
@@ -285,8 +274,8 @@ class Environment ():
                                                   - 0.6445*temp_reduced**3
                                                   - 0.1299*temp_reduced**4
                                                   )
-        en_f = 1.00062 + 3.14E-8*self.p_input + 5.6E-7*self.t_input**2 #Enhance factor
-        return self.h_input/100 * en_f * saturated_vapor_pressure/self.p_input
+        enhance_f = 1.00062 + 3.14E-8*self.p_input + 5.6E-7*self.t_input**2 #Enhance factor
+        return self.h_input/100 * enhance_f * saturated_vapor_pressure/self.p_input
 
     def b_mix_function(self, temp: float or np.ndarray): #Decreases too much with RH
         """Evaluates the composed B at the Environment temperature.
@@ -303,13 +292,13 @@ class Environment ():
             Second virial coefficient of the mixed gas, in m^3/mol
         """
         emf = Environment.molar_fraction
-        ebv = Environment.b_values
+        eb_vals,  = Environment.b_results
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
         xww = self.rh_to_xw()
         xaa = (1-xcc-xww)
-        b_aa = exponential(temp, *ebv[0])
+        b_aa = exponential(temp, *eb_vals[0])
         b_ww = hyland(temp, 33.97, 55306, 72000)#ebv[1][0],ebv[1][2],ebv[1][2])
-        b_cc = parabole(temp, *ebv[2])
+        b_cc = parabole(temp, *eb_vals[2])
         b_aw = b_aw_fit(temp)
         b_mix = b_aa*xaa**2 + b_cc*xcc**2 + b_ww*xww**2 + 2*b_aw*xaa*xww
         return 1E-6*b_mix         #conversion from cm^3/mol to m^3/mol
