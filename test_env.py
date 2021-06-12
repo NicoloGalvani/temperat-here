@@ -27,13 +27,13 @@ def read_kayelaby_speed():
     except FileNotFoundError:
         speed_table = pd.read_html(KL_URL)[10].dropna()
         speed_df = pd.DataFrame({
-                                 'speed (m/s)' : [],
+                                 'Speed (m/s)' : [],
                                  'Temperature (°C)' : [],
                                  'Relative Humidity (%)' : []
                                  })
         for col in range(1,10):
             fixed_rh = pd.DataFrame({
-                                    'speed (m/s)' : speed_table[col][2:],
+                                    'Speed (m/s)' : speed_table[col][2:],
                                     'Temperature (°C)' : speed_table[0][2:],
                                     'Relative Humidity (%)' :
                                         [speed_table[col][1] for j in range(7)]
@@ -61,13 +61,13 @@ def read_kayelaby_attenuation():
     except FileNotFoundError:
         attenuation_table = pd.read_html(KL_URL)[9].dropna()
         attenuation_df = pd.DataFrame({
-                                       'attenuation (dB/km)' : [],
+                                       'Attenuation (dB/km)' : [],
                                        'Frequency (kHz)' : [],
                                        'Relative Humidity (%)' : []
                                        })
         for col in range(1,10):
             fixed_rh = pd.DataFrame({
-                                     'attenuation (dB/km)' :
+                                     'Attenuation (dB/km)' :
                                          attenuation_table[col][2:],
                                      'Frequency (kHz)' :
                                          attenuation_table[col][2:],
