@@ -125,7 +125,7 @@ def b_aw_fit(temp: float, par_0: float, par_1: float, par_2: float, # pylint: di
     return (par_0 + par_1*temp + par_2*temp**2 + par_3*temp**3
             + par_4*temp**4 + par_5*temp**5)
 
-def b_fit(b_data, draw: bool = True):
+def b_fit(b_data, draw: bool = False):
     """Function which is executed as an instance of the class is created:
     it reads data from databases and fits them with the appropriate
     functions, to store the optimized parameters.
@@ -296,7 +296,6 @@ class Environment ():
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
         xww = self.rh_to_xw()
         xaa = 1-xww-xcc
-        print(xaa,xcc,xww)
         mass = air_molar_mass*xaa + water_molar_mass*xww + co2_molar_mass*xcc
         return 1E-3*mass
 
@@ -310,7 +309,7 @@ class Environment ():
                     + 3.14E-8*self.p_input 
                     + 5.6E-7*(self.t_input-TEMP_0)**2
                     ) #Enhance factor, error = 1E-4
-        return self.h_input/100 * enhance_f * saturated_vapor_p/self.p_input
+        return enhance_f * self.h_input/100 * saturated_vapor_p/self.p_input
 
     def b_mix_function(self, temp: float or np.ndarray): #Decreases too much with RH
         """Evaluates the composed B at the Environment temperature.
@@ -335,7 +334,7 @@ class Environment ():
         b_ww = hyland(temp, *eb_vals[1])
         b_cc = parabole(temp, *eb_vals[2])
         b_aw = b_aw_fit(temp, *eb_vals[3])
-        b_mix = b_aa*xaa**2 + b_cc*xcc**2 + 100*b_ww*xww**2 + 2*b_aw*xaa*xww
+        b_mix = b_aa*xaa**2 + b_cc*xcc**2 + b_ww*xww**2 + 6E2*b_aw*xaa*xww
         return 1E-6*b_mix         #conversion from cm^3/mol to m^3/mol
 
     def gamma_adiabatic(self):
@@ -353,14 +352,21 @@ class Environment ():
                                   self.t_input, dx=0.1, n=1) #m^3 mol^-1 K^-1
         b_second = misc.derivative(self.b_mix_function,
                                    self.t_input, dx=0.1, n=2) #m^3 mol^-1 K^-2
+        b_second_0 = misc.derivative(self.b_mix_function,TEMP_0, dx=0.1, n=2)
         mass = Environment.molar_mass #kg mol^-1
-        cp1 = CP1_STP - self.p_input * (self.t_input - TEMP_0) * b_second/mass
+        cp1 = CP1_STP - self.p_input/mass * (self.t_input*b_second
+                                             - TEMP_0*b_second_0)
         cv1 = cp1 - (R + 2*self.p_input*b_prime) / mass
         gamma = cp1/cv1
         return gamma #Decreases too much with RH
 
     def sound_speed(self):
-        """Mockup function, used now for testing, later implemented.
+        """Evaluates 0 frequency sound speed c approximated to the second
+        virial term, following Cramer's tractation.
+        Returns
+        -------
+        c_0 : float or np.ndarray
+            c at 0 frequency, in m/s
         """
         b_temp = self.b_mix_function(self.t_input)
         gamma = self.gamma_adiabatic()
