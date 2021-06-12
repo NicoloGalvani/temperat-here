@@ -1,6 +1,5 @@
 #data from Allan H. Harveya and Eric W. Lemmon "Correlation for the Second Virial Coefficient of Water"
-T,K B,cm^3/mol UB,cm^3/mol
-
+T,K B,cm^3/mol uB,cm^3/mol
 323.127 -844 43
 333.125 -728 21
 343.124 -634 11

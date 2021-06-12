@@ -118,19 +118,14 @@ def hyland(temp: float, par_0: float, par_1: float, par_2: float):
     """
     return par_0 - par_1/temp * 10**(par_2/temp**2)
 
-def b_aw_fit(temp: float or np.ndarray):
+def b_aw_fit(temp: float, par_0: float, par_1: float, par_2: float, # pylint: disable=too-many-arguments
+             par_3: float, par_4: float, par_5: float):
     """Approximated function to evaluate b_aw(T) in cm^3/mol, taken from
     hyland"""
-    return (
-            36.98928
-            - 0.331705*temp
-            + 0.139035E-2*temp**2
-            - 0.574154E-5*temp**3
-            + 0.326513E-7*temp**4
-            - 0.142805E-9*temp**5
-            )
+    return (par_0 + par_1*temp + par_2*temp**2 + par_3*temp**3
+            + par_4*temp**4 + par_5*temp**5)
 
-def b_fit(draw: bool = True):
+def b_fit(b_data, draw: bool = True):
     """Function which is executed as an instance of the class is created:
     it reads data from databases and fits them with the appropriate
     functions, to store the optimized parameters.
@@ -145,7 +140,7 @@ def b_fit(draw: bool = True):
     optimized_parameters: 3x3 np.ndarray of floats
         Optimal values for the parameters so that the sum of the squared
         residuals of f(xdata, *popt) - ydata is minimized; of respectively
-        b_aa, b_ww, b_cc.
+        b_aa, b_ww, b_cc, b_aw.
 
     optimized_covariances: 3x3x3 np.ndarray of floats
         The estimated covariance of optimized_parameters.
@@ -153,13 +148,14 @@ def b_fit(draw: bool = True):
 
     """
 
-    data_list = Environment.b_data
-    function_list = [exponential, hyland, parabole]
-    p0_list = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100]]
-    title = ['Air', 'Water', 'CO2']
+    function_list = [exponential, hyland, parabole, b_aw_fit]
+    p0_list = [[1, 1, 1], [33.97, 55306, 72000], [21, 147, 100],
+               [36.98928, -0.331705, 0.139035E-2,
+                -0.574154E-5, 0.326513E-7,-0.142805E-9]]
+    title = ['Air', 'Water', 'CO2', 'Moist']
     optimized_parameters = []
     optimized_covariances = []
-    for i, data in enumerate(data_list):
+    for i, data in enumerate(b_data):
         popt, pcov = curve_fit(function_list[i], data['T,K'], # pylint: disable=unbalanced-tuple-unpacking
                                data['B,cm^3/mol'], p0_list[i])
         optimized_parameters.append(popt)
@@ -178,6 +174,36 @@ def b_fit(draw: bool = True):
                          color = 'orange', label = 'fit')
             # ax.text(1, 1, str(popt), fontsize=10)
     return optimized_parameters, optimized_covariances
+
+def giacomo_func(temp, par_0: float, par_1: float, par_2: float, par_3: float):
+    """
+    Fitting function for saturated vapor pressure taken from P.Giacomo,
+    Equation for the Determination of the Density of Moist Air (1981).
+    """
+    return np.exp(par_0 +par_1*temp + par_2*temp**2 + par_3*temp**(-1))
+
+def read_svp(path: str):
+    """
+    Reads data of saturated vapor pressure for T in range 0-26°C and RH in
+    range 0-90%, taken from P.Giacomo, Equation for the Determination of
+    the Density of Moist Air (1981).
+
+    Returns
+    -------
+    svp_tidy : pd.DataFrame
+        Table with columns Temperature (K), Humidity (%), Pressure_SV (Pa)
+
+    """
+    svp_data = pd.read_csv(path, '	')
+    svp_tidy = pd.DataFrame()
+    t_increments = svp_data.columns.unique()[1:]
+    t_increments_wide = np.array(np.tile(t_increments,27),dtype=float)
+    t_integers = np.repeat(TEMP_0+svp_data['Temperature(C)'],10)
+    svp_tidy['Temperature (K)'] = t_integers + t_increments_wide
+    svp_data = svp_data.drop(columns='Temperature(C)')
+    svp_tidy['Pressure_SV (Pa)'] = np.concatenate([svp_data.T[col]
+                                            for col in svp_data.T.columns])
+    return svp_tidy
 
 @dataclass
 class Environment ():
@@ -201,8 +227,8 @@ class Environment ():
     h_input: float = field(default = 0.0, metadata={'unit' : '%'})
     p_input: float = field(default = ATM_P, metadata={'unit' : 'Pa'})
     molar_fraction = pd.DataFrame()
-    b_data = pd.DataFrame()
-    b_results = list#pd.DataFrame() b_covariances = pd.DataFrame()
+    svp_results = list
+    b_results = list
     molar_mass = float
 
     ##Possibility to insert also the link to pyroomsound?
@@ -225,21 +251,29 @@ class Environment ():
             air_data_path = 'Data/Dry_Air.txt'
             water_data_path = 'Data/H2O.txt'
             co2_data_path = 'Data/CO2.txt'
+            moist_data_path = 'Data/Moist_Air.txt'
+            saturated_vapor_path = 'Data/SVP.txt'
             try:
                 Environment.molar_fraction = pd.read_csv(molar_fraction_path,
                                                   sep=' ', header=0)
-                Environment.b_data = [pd.read_csv(air_data_path, sep=' ',
-                                                  header=0),
-                                      pd.read_csv(water_data_path, sep=' ', 
-                                                  header=1),
-                                      pd.read_csv(co2_data_path, sep=' ', 
-                                                  header=0)]
+                svp_data = read_svp(saturated_vapor_path)
+                b_data = [pd.read_csv(air_data_path, sep=' ', header=0),
+                          pd.read_csv(water_data_path, sep=' ', header=1),
+                          pd.read_csv(co2_data_path, sep=' ', header=0),
+                          pd.read_csv(moist_data_path, sep=' ', header=3)]
                 #Added https://pubs.acs.org/doi/pdf/10.1021/je60069a019
-                Environment.b_results = b_fit()
+                Environment.b_results = b_fit(b_data)
+                Environment.svp_results = curve_fit(giacomo_func,
+                                                    svp_data['Temperature (K)'],
+                                                    svp_data["Pressure_SV (Pa)"],
+                                                    [34, -2E-2, 1E-5, 6E3])
                 Environment.molar_mass = self.set_molar_mass()
             except FileNotFoundError as fnne:
                 raise FileNotFoundError("Check that input data are in " +
-                                        "Data/ folder") from fnne
+                                        "Data/ folder.") from fnne
+            except (ValueError, RuntimeError):
+                print("Fitting not succeded, something wrong in the data.")
+                raise
 
     def set_molar_mass(self):
         """Evaluates molar mass of the air components from Molar Fraction
@@ -256,12 +290,13 @@ class Environment ():
         molar_masses_xi = np.array([float(emf[emf['Constituent'] == m]['xiMi'])
                                     for m in molecules])
         x_ad = [float(emf[emf['Constituent'] == m]['xi']) for m in molecules]
-        air_molar_mass = np.sum(molar_masses_xi)/np.sum(x_ad)
+        air_molar_mass = np.sum(molar_masses_xi) / np.sum(x_ad)
         water_molar_mass = float(emf[emf['Constituent'] == 'H2O']['Mi'])
         co2_molar_mass = float(emf[emf['Constituent'] == 'CO2']['Mi'])
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
         xww = self.rh_to_xw()
         xaa = 1-xww-xcc
+        print(xaa,xcc,xww)
         mass = air_molar_mass*xaa + water_molar_mass*xww + co2_molar_mass*xcc
         return 1E-3*mass
 
@@ -270,15 +305,12 @@ class Environment ():
         taken from 'A simple expression for the saturation vapour pressure of
         water in the range −50 to 140°C' J M Richards
         """
-        temp_reduced = 1 - (100 + TEMP_0) / self.t_input
-        saturated_vapor_pressure = ATM_P * np.exp(
-                                                  13.3185*temp_reduced
-                                                  - 1.9760*temp_reduced**2
-                                                  - 0.6445*temp_reduced**3
-                                                  - 0.1299*temp_reduced**4
-                                                  )
-        enhance_f = 1.00062 + 3.14E-8*self.p_input + 5.6E-7*self.t_input**2 #Enhance factor
-        return self.h_input/100 * enhance_f * saturated_vapor_pressure/self.p_input
+        saturated_vapor_p = giacomo_func(self.t_input,*self.svp_results[0])
+        enhance_f = (1.00062 
+                    + 3.14E-8*self.p_input 
+                    + 5.6E-7*(self.t_input-TEMP_0)**2
+                    ) #Enhance factor, error = 1E-4
+        return self.h_input/100 * enhance_f * saturated_vapor_p/self.p_input
 
     def b_mix_function(self, temp: float or np.ndarray): #Decreases too much with RH
         """Evaluates the composed B at the Environment temperature.
@@ -300,13 +332,13 @@ class Environment ():
         xww = self.rh_to_xw()
         xaa = (1-xcc-xww)
         b_aa = exponential(temp, *eb_vals[0])
-        b_ww = hyland(temp, 33.97, 55306, 72000)#ebv[1][0],ebv[1][2],ebv[1][2])
+        b_ww = hyland(temp, *eb_vals[1])
         b_cc = parabole(temp, *eb_vals[2])
-        b_aw = b_aw_fit(temp)
-        b_mix = b_aa*xaa**2 + b_cc*xcc**2 + b_ww*xww**2 + 2*b_aw*xaa*xww
+        b_aw = b_aw_fit(temp, *eb_vals[3])
+        b_mix = b_aa*xaa**2 + b_cc*xcc**2 + 100*b_ww*xww**2 + 2*b_aw*xaa*xww
         return 1E-6*b_mix         #conversion from cm^3/mol to m^3/mol
 
-    def gamma(self):
+    def gamma_adiabatic(self):
         """This function determines the heat capacity ratio γ for the
         Environment, starting from its temperature, pressure, molar mass,
         B coefficient and its derivatives up to second order.
@@ -322,7 +354,7 @@ class Environment ():
         b_second = misc.derivative(self.b_mix_function,
                                    self.t_input, dx=0.1, n=2) #m^3 mol^-1 K^-2
         mass = Environment.molar_mass #kg mol^-1
-        cp1 = CP1_STP - self.p_input * (self.t_input - TEMP_0) * b_second / mass
+        cp1 = CP1_STP - self.p_input * (self.t_input - TEMP_0) * b_second/mass
         cv1 = cp1 - (R + 2*self.p_input*b_prime) / mass
         gamma = cp1/cv1
         return gamma #Decreases too much with RH
@@ -331,11 +363,8 @@ class Environment ():
         """Mockup function, used now for testing, later implemented.
         """
         b_temp = self.b_mix_function(self.t_input)
-        gamma = self.gamma()
+        gamma = self.gamma_adiabatic()
         mass = Environment.molar_mass
         temp = self.t_input
         c_0 = np.sqrt(gamma/mass * (temp*R + 2*self.p_input*b_temp))
         return c_0
-
-room = Environment()
-s = room.sound_speed()
