@@ -154,12 +154,13 @@ def b_fit(b_data, draw: bool = False):
                 -0.574154E-5, 0.326513E-7,-0.142805E-9]]
     title = ['Air', 'Water', 'CO2', 'Moist']
     optimized_parameters = []
-    optimized_covariances = []
+    optimized_deviations = []
     for i, data in enumerate(b_data):
         popt, pcov = curve_fit(function_list[i], data['T,K'], # pylint: disable=unbalanced-tuple-unpacking
-                               data['B,cm^3/mol'], p0_list[i])
+                               data['B,cm^3/mol'], p0_list[i],
+                               data['uB,cm^3/mol'])
         optimized_parameters.append(popt)
-        optimized_covariances.append(pcov)
+        optimized_deviations.append(np.sqrt(np.diagonal(pcov)))
         if draw:
             new_temp = np.arange(273, 313, 0.5)
             new_b = function_list[i](new_temp, *popt)
@@ -168,12 +169,12 @@ def b_fit(b_data, draw: bool = False):
             axis.set(xlabel = 'Temperature (K)', ylabel = 'B(T) (cm^3/mol)',
                      title = title[i]+str(popt))
             axis.tick_params(direction = 'in')
-            sns.scatterplot(x = data['T,K'], y = data['B,cm^3/mol'],
+            plt.errorbar(x = data['T,K'], y = data['B,cm^3/mol'],
+                         yerr=data['uB,cm^3/mol'], fmt='o',
                             color = 'blue', label = 'data')
             sns.lineplot(x = new_temp, y = new_b,
                          color = 'orange', label = 'fit')
-            # ax.text(1, 1, str(popt), fontsize=10)
-    return optimized_parameters, optimized_covariances
+    return optimized_parameters, optimized_deviations
 
 def giacomo_func(temp, par_0: float, par_1: float, par_2: float, par_3: float):
     """
@@ -206,7 +207,7 @@ def read_svp(path: str):
     return svp_tidy
 
 @dataclass
-class Environment ():
+class Environment ():#pylint: disable=R0902
     """Instances of this class represents a thermodynamic system
     with homogeneous temperature, humidity and pressure.
     It will later implement compatibility with uncertainties for
@@ -230,7 +231,7 @@ class Environment ():
     svp_results = list
     b_results = list
     molar_mass = float
-
+    xww = float
     ##Possibility to insert also the link to pyroomsound?
 
     def __post_init__(self):
@@ -267,6 +268,7 @@ class Environment ():
                                                     svp_data['Temperature (K)'],
                                                     svp_data["Pressure_SV (Pa)"],
                                                     [34, -2E-2, 1E-5, 6E3])
+                self.xww = self.rh_to_xw()
                 Environment.molar_mass = self.set_molar_mass()
             except FileNotFoundError as fnne:
                 raise FileNotFoundError("Check that input data are in " +
@@ -274,6 +276,8 @@ class Environment ():
             except (ValueError, RuntimeError):
                 print("Fitting not succeded, something wrong in the data.")
                 raise
+        else:
+            self.xww = self.rh_to_xw()
 
     def set_molar_mass(self):
         """Evaluates molar mass of the air components from Molar Fraction
@@ -294,9 +298,8 @@ class Environment ():
         water_molar_mass = float(emf[emf['Constituent'] == 'H2O']['Mi'])
         co2_molar_mass = float(emf[emf['Constituent'] == 'CO2']['Mi'])
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
-        xww = self.rh_to_xw()
-        xaa = 1-xww-xcc
-        mass = air_molar_mass*xaa + water_molar_mass*xww + co2_molar_mass*xcc
+        xaa = 1-self.xww-xcc
+        mass = air_molar_mass*xaa + water_molar_mass*self.xww + co2_molar_mass*xcc
         return 1E-3*mass
 
     def rh_to_xw(self):
@@ -304,9 +307,11 @@ class Environment ():
         taken from 'A simple expression for the saturation vapour pressure of
         water in the range −50 to 140°C' J M Richards
         """
-        saturated_vapor_p = giacomo_func(self.t_input,*self.svp_results[0])
-        enhance_f = (1.00062 
-                    + 3.14E-8*self.p_input 
+        svp_pars, svp_cov = self.svp_results
+        svp_err = np.sqrt(np.diag(svp_cov))
+        saturated_vapor_p = giacomo_func(self.t_input, *svp_pars)
+        enhance_f = (1.00062
+                    + 3.14E-8*self.p_input
                     + 5.6E-7*(self.t_input-TEMP_0)**2
                     ) #Enhance factor, error = 1E-4
         return enhance_f * self.h_input/100 * saturated_vapor_p/self.p_input
@@ -326,15 +331,14 @@ class Environment ():
             Second virial coefficient of the mixed gas, in m^3/mol
         """
         emf = Environment.molar_fraction
-        eb_vals, eb_cov  = Environment.b_results
+        eb_vals, eb_dev  = Environment.b_results
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
-        xww = self.rh_to_xw()
-        xaa = (1-xcc-xww)
+        xaa = (1-xcc-self.xww)
         b_aa = exponential(temp, *eb_vals[0])
         b_ww = hyland(temp, *eb_vals[1])
         b_cc = parabole(temp, *eb_vals[2])
         b_aw = b_aw_fit(temp, *eb_vals[3])
-        b_mix = b_aa*xaa**2 + b_cc*xcc**2 + b_ww*xww**2 + 6E2*b_aw*xaa*xww
+        b_mix = b_aa*xaa**2 + b_cc*xcc**2 + 2*b_ww*self.xww**2 + 5E2*b_aw*xaa*self.xww
         return 1E-6*b_mix         #conversion from cm^3/mol to m^3/mol
 
     def gamma_adiabatic(self):
@@ -358,9 +362,9 @@ class Environment ():
                                              - TEMP_0*b_second_0)
         cv1 = cp1 - (R + 2*self.p_input*b_prime) / mass
         gamma = cp1/cv1
-        return gamma #Decreases too much with RH
+        return gamma
 
-    def sound_speed(self):
+    def sound_speed_0(self):
         """Evaluates 0 frequency sound speed c approximated to the second
         virial term, following Cramer's tractation.
         Returns
@@ -371,6 +375,88 @@ class Environment ():
         b_temp = self.b_mix_function(self.t_input)
         gamma = self.gamma_adiabatic()
         mass = Environment.molar_mass
-        temp = self.t_input
-        c_0 = np.sqrt(gamma/mass * (temp*R + 2*self.p_input*b_temp))
+        c_0 = np.sqrt(gamma/mass * (self.t_input*R + 2*self.p_input*b_temp))
         return c_0
+
+    def freq_relax_nitro(self):
+        """
+        Evaluates the relaxation frequency of nitrogen at the environmental
+        conditions.
+
+        Returns
+        -------
+        f_nitro : float
+            Frequency of the wave in Hz
+
+        """
+        t_red = self.t_input/(TEMP_0+20)
+        p_red = self.p_input/ATM_P
+        h_enh = self.xww*1E3
+        f_nitro = p_red*t_red**(-0.5)*(9 + 28*h_enh*np.exp(-4.170*(t_red**(-1/3)-1)))
+        return f_nitro
+
+    def freq_relax_oxy(self):
+        """
+        Evaluates the relaxation frequency of nitrogen at the environmental
+        conditions.
+
+        Returns
+        -------
+        f_oxy : float
+            Frequency of the wave in Hz
+
+        """
+        p_red = self.p_input/ATM_P
+        h_enh = self.xww*1E3
+        f_oxy = p_red*(24+4.04E3*h_enh*(0.2+h_enh)/(3.91+h_enh))
+        return f_oxy
+
+    def attenuation_corrections(self, frequency: float or np.ndarray):
+        """
+        Evaluates the corrections to speed of sound due to attenuation of
+        oxygen and nitrogen, for a given frequency. These corrections are
+        expressed as:
+            α_i/2πf_i with i=N,O
+        where α_i is the attenuation coefficient and f_i the attenuation
+        frequency of the chemical species.
+
+        Parameters
+        ----------
+        frequency : floar or np.ndarray
+            Frequency of the wave in Hz
+
+        Returns
+        -------
+        corrections : list
+            List of the corrections for N and O, in s/m
+
+        """
+        f_red = frequency/np.array([self.freq_relax_nitro(),
+                                       self.freq_relax_oxy()])
+        t_red = np.array([3352,2239.1]) / self.t_input
+        coeffs = np.array([0.781,0.209])/35
+        corrections = (coeffs*f_red/ self.sound_speed_0() * f_red/(1+f_red**2)
+                         * t_red**2 * np.exp(-t_red)).tolist()
+        return corrections
+
+    def sound_speed_f(self, frequency: float = 0):# or np.ndarray
+        """
+        Evaluates frequency dependant speed of sound
+
+        Parameters
+        ----------
+        frequency : float
+            Frequency of the wave in Hz, if 0 (default) it calls directly
+            function Environment.sound_speed_0()
+
+        Returns
+        -------
+        sound_speed : float
+            c at the input frequency, in m/s
+
+        """
+        if frequency==0:
+            return self.sound_speed_0()
+        c_nitro, c_oxy = self.attenuation_corrections(frequency)
+        sound_speed = 1 / (1/self.sound_speed_0() - c_nitro - c_oxy)
+        return sound_speed

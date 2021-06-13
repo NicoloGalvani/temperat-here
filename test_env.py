@@ -8,6 +8,7 @@ from env import Environment
 KL_URL = ('https://web.archive.org/web/20190508003406/http://www.kayelaby.npl'
           +'.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air')
 PRECISION = 1E-5
+MAX_FREQUENCY = 1E6
 
 def read_kayelaby_speed():
     """Function which reads speed of sound data from Kaye and Laby website and
@@ -90,22 +91,24 @@ def test_xw_in_appropriate_range(temp, rel_hum):
     xw_min = 0.
     xw_max = 0.19
     room = Environment(t_input = temp, h_input = rel_hum)
-    xw = room.rh_to_xw()
-    assert xw >= xw_min
-    assert xw <= xw_max
+    assert room.xww >= xw_min
+    assert room.xww <= xw_max
 
-@given(st.floats(250.,330.), st.floats(0,100), st.floats(101325,111325))
-def test_sound_speed_positive(temp, rel_hum, pressure):
+@given(st.floats(250.,330.), st.floats(0,100), st.floats(101325,111325),
+       st.floats(0,MAX_FREQUENCY))
+def test_sound_speed_positive(temp, rel_hum, pressure, frequency):
     """Check: c0 > 0 """
     room = Environment(temp, rel_hum, pressure)
-    assert room.sound_speed() > 0
+    assert room.sound_speed_f(frequency) > 0
 
 def test_sound_speed_compatible_with_data():
     """Check: c0 produced in the range of exp. observations """
-    precision = 0.3
+    precision = 1E-3
     data = read_kayelaby_speed()
     for i in range(len(data)):
         temp_k = data['Temperature (°C)'][i] + 273.15
         rel_hum = data['Relative Humidity (%)'][i]
         room = Environment(temp_k,rel_hum)
-        assert abs(room.sound_speed() - data['Speed (m/s)'][i]) < precision
+        assert abs(room.sound_speed_0()
+                   - data['Speed (m/s)'][i]
+                   )/data['Speed (m/s)'][i] < precision
