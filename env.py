@@ -248,7 +248,7 @@ class Environment ():#pylint: disable=R0902
 
         """
         if Environment.molar_fraction.empty:
-            molar_fraction_path = 'Data/molar_fraction.txt'
+            molar_fraction_path = 'Data/Molar_Fraction.txt'
             air_data_path = 'Data/Dry_Air.txt'
             water_data_path = 'Data/H2O.txt'
             co2_data_path = 'Data/CO2.txt'
@@ -308,7 +308,7 @@ class Environment ():#pylint: disable=R0902
         water in the range −50 to 140°C' J M Richards
         """
         svp_pars, svp_cov = self.svp_results
-        svp_err = np.sqrt(np.diag(svp_cov))
+        svp_err = np.sqrt(np.diag(svp_cov))# pylint: disable=unused-variable
         saturated_vapor_p = giacomo_func(self.t_input, *svp_pars)
         enhance_f = (1.00062
                     + 3.14E-8*self.p_input
@@ -331,7 +331,7 @@ class Environment ():#pylint: disable=R0902
             Second virial coefficient of the mixed gas, in m^3/mol
         """
         emf = Environment.molar_fraction
-        eb_vals, eb_dev  = Environment.b_results
+        eb_vals, eb_dev  = Environment.b_results# pylint: disable=unused-variable
         xcc = float(emf[emf['Constituent'] == 'CO2']['xi'])
         xaa = (1-xcc-self.xww)
         b_aa = exponential(temp, *eb_vals[0])
@@ -431,32 +431,40 @@ class Environment ():#pylint: disable=R0902
             List of the corrections for N and O, in s/m
 
         """
-        f_red = frequency/np.array([self.freq_relax_nitro(),
-                                       self.freq_relax_oxy()])
+        relax_freqs = np.array([self.freq_relax_nitro(), self.freq_relax_oxy()])
         t_red = np.array([3352,2239.1]) / self.t_input
         coeffs = np.array([0.781,0.209])/35
+        if isinstance(frequency,np.ndarray):
+            frequency = frequency.reshape(len(frequency),1)
+            relax_freqs = relax_freqs.reshape(1,2)
+            t_red = t_red.reshape(1,2)
+            coeffs = coeffs.reshape(1,2)
+        f_red = frequency/relax_freqs
         corrections = (coeffs*f_red/ self.sound_speed_0() * f_red/(1+f_red**2)
-                         * t_red**2 * np.exp(-t_red)).tolist()
+                         * t_red**2 * np.exp(-t_red))
         return corrections
 
-    def sound_speed_f(self, frequency: float = 0):# or np.ndarray
+    def sound_speed_f(self, frequency: float = 0 or np.ndarray):
         """
         Evaluates frequency dependant speed of sound
 
         Parameters
         ----------
-        frequency : float
+        frequency : float or np.ndarray
             Frequency of the wave in Hz, if 0 (default) it calls directly
             function Environment.sound_speed_0()
 
         Returns
         -------
-        sound_speed : float
+        sound_speed : float or np.ndarray
             c at the input frequency, in m/s
 
         """
-        if frequency==0:
-            return self.sound_speed_0()
-        c_nitro, c_oxy = self.attenuation_corrections(frequency)
+        if isinstance(frequency,float):
+            if frequency==0:
+                return self.sound_speed_0()
+            c_nitro, c_oxy = self.attenuation_corrections(frequency)
+        else:
+            c_nitro, c_oxy = self.attenuation_corrections(frequency).T
         sound_speed = 1 / (1/self.sound_speed_0() - c_nitro - c_oxy)
         return sound_speed
