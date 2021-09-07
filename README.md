@@ -68,39 +68,33 @@ where the only mixed second virial coefficient different from 0 is air-water vap
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=\begin{align*}&space;Baw(T)&space;&=&space;36.98928-0.331705T&plus;0.139035*10^{-2}&space;T^2\\&space;&&space;-&space;0.574154*10^{-5}&space;T^3&space;&plus;&space;0.326513*10^{-7}&space;T^4&space;-&space;0.142805*10^{-9}&space;T^5&space;\end{align*}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\begin{align*}&space;Baw(T)&space;&=&space;36.98928-0.331705T&plus;0.139035*10^{-2}&space;T^2\\&space;&&space;-&space;0.574154*10^{-5}&space;T^3&space;&plus;&space;0.326513*10^{-7}&space;T^4&space;-&space;0.142805*10^{-9}&space;T^5&space;\end{align*}" title="\begin{align*} Baw(T) &= 36.98928-0.331705T+0.139035*10^{-2} T^2\\ & - 0.574154*10^{-5} T^3 + 0.326513*10^{-7} T^4 - 0.142805*10^{-9} T^5 \end{align*}" /></a>
 
-**The simulation**
-The basic concept of the experiment is the following:
-
-- a speaker is set in place, and emits a sound wave of a specific frequency against a 'wall' at distance L;
-
-- the 'wall' absorbes a fraction of the wave and reflects the remaining, again in direction of a microphone at distance l<<L from the speaker;
-
-- the microphone registers the reflected sound wave after a time t, discerning it from the background noise.
-
-The speed cφ can then be evaluated as simply as <a href="https://www.codecogs.com/eqnedit.php?latex=c_{\phi}&space;=&space;\frac{2L+l}{t}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?c_{\phi}&space;=&space;\frac{2L+l}{t}" title="c_{\phi} = \frac{2L+l}{t}" /></a> in the simplest configuration, where the microphone is behind the speaker. Other configurations will be taken into account, varying the reciprocal position of speaker, microphone and wall (and so L and l).
-
-<a href="https://ibb.co/18vLVSg"><img src="https://i.ibb.co/18vLVSg/Basic-space-confguration-1.png" alt="Basic-space-confguration-1" border="0"></a>
+**The measurement**
+A speaker is set in place, and emits a sound wave directed to a microphone at distance L, which records the incoming sound. In the simpliest configuration there are no obstacles between microphone and speaker, and the sorrounding environment is large enough (or absorbent enough) to prevent any echo. The initial signal is a chirp wave, with a frequency logarithmically decreasing from 10.240 kHz to 20 Hz: its frequency components will travel with different speeds cφi, proportionally to the humidity in the gas, and will produce a slightly different signal. Comparing the spectrograms of emitted and received signals the travel time Δt is measured for each frequency, and the speeds cφi are measured through
+<a href="https://www.codecogs.com/eqnedit.php?latex=c_{\phi}&space;=&space;\frac{L}{\Delta&space;t}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?c_{\phi}&space;=&space;\frac{L}{\Delta&space;t}" title="c_{\phi} = \frac{L}{\Delta t}" /></a>. These data are compared to a dataset generated from previous calculations of cφ(T,H,P), to identify temperature and humidity.
 
 
 Code structure:
 -
 The project is composed by the following blocks:
--the file env.py: contains the definition of Environment class, which resembles a space where temperature, humidity and pressure are homogeneous and constant. It contains the method necessary to link c to the three input parameters.
--the folder Data: contains the input for Environment class, the experimental data of air composition and the second virial coefficients of its main components; each file specifies the source paper.
--the file test_env.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
--the file main.py: simulates an experimental apparatus, which registers the time delay between the production of sound by a speaker and its collection by a microphone put at a chosen distance, measures c, and evaluates the room's temperature.
+- the folder Data: contains the input for Environment class, the experimental data of air composition and the second virial coefficients of its main components; each file specifies the source paper.
+- the file env.py: contains the definition of Environment class, which resembles a space where temperature, humidity and pressure are homogeneous and constant. It contains the method necessary to evaluate the speed of sound at a desired frequency cφ(T,H,P).
+- the file test_env.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
+- the file measure.py: contains the functions for signal preparation, measurement and analysis. It provides the option to perform three types of measurements:
+  - simulated through 
+  - with an experimental apparatus, not tested because of high hardware requirements ();
+- the file measure_test.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
+- the file main.py: 
 
 **Environment class**
 The first time an instance is created:
 
--It reads experimental data regarding air composition (*Cramer DOI: 10.1121/1.405827*), speed of sound in air (*Kaye and Laby*), sound attenuation frequency dependent (*Kaye and Laby*), and the second virial coefficient of three gases: dry air CO2 free, CO2, water vapor (taken from *Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'* for the first and the second, from *Allan H. Harveya and Eric W. Lemmon "Correlation for the Second Virial Coefficient of Water"* the third). They are stored into databases and saved as class attributes.
+- It reads experimental data regarding air composition (*Cramer DOI: 10.1121/1.405827*), speed of sound in air (*Kaye and Laby*), sound attenuation frequency dependent (*Kaye and Laby*), and the second virial coefficient of three gases: dry air CO2 free, CO2, water vapor (taken from *Sengers, Klein and Gallagher, (1971) 'Pressure-volume-temperature relationships of gases-virial coefficients'* for the first and the second, from *Allan H. Harveya and Eric W. Lemmon "Correlation for the Second Virial Coefficient of Water"* the third). They are stored into databases and saved as class attributes.
 
--It evaluates the Molar Mass of the gas and stores it as a class attribute.
+- It evaluates the Molar Mass of the gas and stores it as a class attribute.
 
--It fits the second virial coefficients with appropriate functions and stores the optimal parameters and covariances as class attirbutes.
+- It fits the second virial coefficients with appropriate functions and stores the optimal parameters and covariances as class attributes.
 
-These data will then be used for each instance to evaluate the mixing second virial coefficient Bmix(T,P,RH) and the adiabatic constant γ(T,P,RH), which are sufficient to evaluate c0(T,P,RH).
-Two options to have T(c0,P,RH): approximate Bmix with a simplier analytic function, which brings an evaluable expression also for T; tabulate with high precision c0(T,P,RH), and compare the measurement of c0 with the table.
+These data will then be used for each instance to evaluate the mixing second virial coefficient Bmix(T,P,RH) and the adiabatic constant γ(T,P,RH), which are sufficient to evaluate c0(T,P,RH). 
 
 
 
