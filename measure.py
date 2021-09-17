@@ -4,14 +4,17 @@ Created on Sat Jun  5 14:03:02 2021
 
 @author: nicolog
 """
-import time
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import spectrogram
 from scipy.fftpack import rfft, fftfreq
 import librosa
 import sounddevice as sd
 import pyroomacoustics as pra
+from sklearn.neighbors import KNeighborsRegressor
+from env import Environment
+
 
 def time_plot(speaker_signal, mic_signal):
     """
@@ -336,11 +339,101 @@ def measure(distance:float=4000, period:float=10, sampling_f:int=153_600,#pylint
                                      freq_emitted, distance)
     return speed_spectrum
 
-for test in np.arange(10):
-    start = time.time()
-    speed = measure(draw=True)
-    plt.figure()
-    plt.semilogx(speed[0], speed[1])
-    plt.title('Test = {}'.format(test))
-    plt.show()
-    end = time.time()
+######Stop measure, start analysis
+
+def generate_fingerprint(fingerprint_length: int = 10,#pylint: disable=R0914
+                          humidity_n_samples : int = 21,
+                          temperature_n_samples : int = 21):
+    """
+        This function generates a reference database, from a set of
+    humidity_n_samples X temperature_n_samples environments.
+    For each environment the function simulates a frequency sweep, and searches
+    the frequencies f_i where the difference Δc = c(f_i)-c(10Hz) reaches a set
+    of threshold values, called delta_thresholds.
+    These frequencies, alongside with c(10Hz), constitute a fingerprint of the
+    environment state.
+
+    Parameters
+    ----------
+    fingerprint_length : int, optional
+        Number of Δc values to take as reference, in a range between
+        5mm/s and 75mm/s. The default is 10.
+    humidity_n_samples : int, optional
+        Dimension of the sampling of humidity values, in a range between
+        0% and 100%. The default is 21.
+    temperature_n_samples : int, optional
+        Dimension of the sampling of temperature values, in a range between
+        0°C and 40°C. The default is 21.
+
+    Returns
+    -------
+    database : pd.Dataframe
+        Table of fingerprints for the set of studied environments. It stores
+        the temperature and humidity of the environment, the 0Hz sound speed
+        and the frequencies f_i.
+
+    """
+    humidity_min = 0
+    humidity_max = 100
+    humidities = np.linspace(humidity_min, humidity_max,
+                              humidity_n_samples)
+    temperature_min = 273.15
+    temperature_max = 313.15
+    temperatures = np.linspace(temperature_min, temperature_max,
+                              temperature_n_samples)
+    frequency_min = 20
+    frequency_max = 22_500
+    frequency_n_samples = 1000
+    sweep = np.geomspace(frequency_min, frequency_max, frequency_n_samples)
+    delta_speed_min = 8E-3
+    delta_speed_max = 75E-3
+    delta_thresholds = np.linspace(delta_speed_min, delta_speed_max,
+                                  fingerprint_length)
+    data = []
+    for h_i in humidities:
+        for t_i in temperatures:
+            room = Environment(t_i, h_i)
+            speed_varying_f = room.sound_speed_f(sweep)
+            speed_20_f = speed_varying_f[0]
+            delta_speed = speed_varying_f-speed_20_f
+            fingerprint = {dt:sweep[np.nonzero(delta_speed>dt)[0]][0]
+                            for dt in delta_thresholds
+                            if sweep[np.nonzero(delta_speed>dt)[0]].size>0}
+            fingerprint['Temperature'] = t_i - 273.15
+            fingerprint['Humidity'] = h_i
+            fingerprint['Sound_speed_20'] = speed_20_f
+            data.append(fingerprint)
+    database = pd.DataFrame(data)
+    database = database[['Temperature','Humidity', 'Sound_speed_20',
+                        *delta_thresholds]]
+    database = database.fillna(0)
+    return database
+
+def knn_regressor(database : pd.DataFrame, sample_to_fit : np.ndarray):
+    """
+    Employs a multidimensional KNN (Kernel Nearest-Neighbour) regressor to the
+    simulated enviroments, to fit the model to a sample fingerprint, and
+    infer its temperature and humidity.
+
+    Parameters
+    ----------
+    database : pd.DataFrame
+        Table of simulated environments and related fingerprints
+    sample_to_fit : np.ndarray
+        Fingerprint of an environment, obtained through generate_fingerprint()
+
+    Returns
+    -------
+    environment_conditions : np.ndarray
+        array of the [temperature, humidity] values yielded by the regression
+
+    """
+    sample_to_fit = sample_to_fit.fillna(0)
+    x_vec = database.drop(['Temperature','Humidity'],axis=1)
+    y_vec = database[['Temperature','Humidity']]
+    def weight_gauss(dist, sig=2.0):
+        return np.exp(-dist**2/(2*sig**2))
+    neigh = KNeighborsRegressor(n_neighbors=6, weights=weight_gauss)
+    neigh.fit(x_vec, y_vec)
+    environment_conditions = neigh.predict(sample_to_fit)
+    return environment_conditions
