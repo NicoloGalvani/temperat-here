@@ -80,10 +80,11 @@ The project is composed by the following blocks:
 - the file env.py: contains the definition of Environment class, which resembles a space where temperature, humidity and pressure are homogeneous and constant. It contains the method necessary to evaluate the speed of sound at a desired frequency cφ(T,H,P).
 - the file test_env.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
 - the file measure.py: contains the functions for signal preparation, measurement and analysis. It provides the option to perform three types of measurements:
-  - simulated through 
-  - with an experimental apparatus, not tested because of high hardware requirements ();
-- the file measure_test.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
-- the file main.py: 
+  - experimental ones, still under development because of high hardware requirements and difficoult experimental conditions; 
+  - a ray-tracing simulation of soundwave propagation, executed through package pyroomacoustics;
+  - a signal transformation, where the single frequencies of the signal spectrogram are translated in time according to the corresponding speeds evaluated thanks to env.py, and the modified spectrogram is inverted back to a wave. 
+- the file measure_test.py: contains tests for measurement and signal processing functions.
+- the file main.py: executes the measurements through a command-line-interface.
 
 **Environment class**
 The first time an instance is created:
@@ -96,11 +97,12 @@ The first time an instance is created:
 
 These data will then be used for each instance to evaluate the mixing second virial coefficient Bmix(T,P,RH) and the adiabatic constant γ(T,P,RH), which are sufficient to evaluate c0(T,P,RH). 
 
+**Measure**
 
+
+-
 
 After having tested that this procedure works, next steps will be:
-
--To study how uncertainties propagate from the experimental data to final evaluations, handling them with package 'uncertainties' https://pythonhosted.org/uncertainties/.
 
 -To simulate how a real ambience would affect such a measurements, including considerations regarding frequency, absorption and sound analysis with package 'pyroomacoustics' https://github.com/LCAV/pyroomacoustics.
 
