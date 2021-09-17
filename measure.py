@@ -99,6 +99,41 @@ def produce_signal(sampling_f:int = 48_000, period:float=1, gain:float=10):
     time_series = np.arange(len(wave_series))/sampling_f
     return (time_series, wave_series)
 
+def exp_record (signal : np.ndarray, sampling_f : int = 48_000,
+                       distance:float = 1000):
+    """
+    Emit a sound through hardware speaker and record it through the microphone.
+    This measurement condition is still under development, since it requires a
+    professional hardware, with good performances in all the studied bandwidth,
+    along with 'clean' experimental conditions: anechoic room, large distances,
+    low environmental noise.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        The signal which must be emitted from the speaker.
+    sampling_f : int, optional
+        Sampling frequency of the signal, in Hertz. The default is 48_000.
+    distance : float
+        Distance between speaker and microphone, in meters. The default is 1000.
+
+    Returns
+    -------
+    mic_time : np.ndarray
+       Array of the time sequence of the acquired signal.
+    mic_signal : np.ndarray
+       Array of the intensities of the acquired signal.
+
+    """
+
+    print('Check that microphone and speaker are at {:.3f}m.'.format(
+        distance))
+    input("Press Enter to start acquisition...")
+    extended_signal = np.concatenate((signal, np.zeros(len(signal))))
+    mic_signal = sd.playrec(extended_signal, samplerate=sampling_f,
+                            channels=1, out=np.zeros([3*len(signal),1]))
+    mic_time = np.arange(len(mic_signal))/sampling_f
+    return mic_time, mic_signal
 
 def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
                        distance:float = 10, temperature:float = -1,
@@ -406,14 +441,7 @@ def measure(distance:float=4000, period:float=20, sampling_f:int=153_600,#pylint
         mic_time, mic_signal = pyroom_simulation(signal, sampling_f, distance,
                                                  temperature, humidity)
     elif method == 'experiment':
-        print('Check that microphone and speaker are at {:.3f}m.'.format(
-            distance))
-        input("Press Enter to continue...")
-        extended_signal = np.concatenate((signal[1], np.zeros(len(signal[1]))))
-        mic_signal = sd.playrec(extended_signal, samplerate=sampling_f,
-                                channels=1, out=np.zeros([3*len(signal[1]),1]))
-        mic_time = np.arange(len(mic_signal))/sampling_f
-        microphone = (mic_time, mic_signal)
+        mic_time, mic_signal = exp_record(signal, sampling_f, distance)
     else:
         raise ValueError('Choose between corrected, pyroom or experiment')
     spectrum_emitted, freq_emitted = signal_processing(signal, time, sampling_f)
