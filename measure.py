@@ -94,7 +94,7 @@ def produce_signal(sampling_f:int = 48_000, period:float=1, gain:float=10):
     min_frequency = 20
     crescendo = gain*librosa.chirp(min_frequency, max_frequency,
                                    sampling_f, duration = period)
-    modulation = np.geomspace(0.5, 50, len(crescendo))
+    modulation = 1#np.geomspace(0.5, 50, len(crescendo))
     wave_series = modulation*crescendo
     time_series = np.arange(len(wave_series))/sampling_f
     return (time_series, wave_series)
@@ -198,8 +198,6 @@ def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
     mic_time = np.arange(len(mic_signal))/ sampling_f
     return (mic_time, mic_signal)
 
-def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000, beta:int = 1500,#pylint: disable=R0914
-                  window_type = 'hamming', f_range:list = (24_000, 20)):
 def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914
                        distance:float = 10, temperature:float = -1,
                        humidity:float = -1):
@@ -271,6 +269,54 @@ def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: di
                               bins_per_octave = 40)
     mic_time = np.arange(len(mic_signal))/sampling_f+t_start
     return (mic_time, mic_signal)
+
+def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
+                  f_range:list = (24_000, 20)):
+    """
+    Algorithm developed by Nisar, Khan, Tariq in "An Efficient Adaptive Window
+    Size Selection Method for Improving Spectrogram Visualization". After a
+    first analysis of the input signal, it produces a spectrogram using "Short
+    Time Fourier Transform" or "Constant Q Transform" techniques, choosing the
+    most efficient for the type of signal.
+    The STFT is performed using scipy implementation, while CQT is performed
+    using librosa, since scipy lacks it.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        The signal to analyze.
+    sampling_f : int, optional
+        Sampling frequency of the signal, in Hertz. The default is 48_000.
+    f_range : list, optional
+        A priori maximum and minimum frequencies of the signal, used in CQT to
+        determine the number of octaves. The default is [24_000, 20].
+
+    Returns
+    -------
+    freqs : array-like
+        List of frequencies for the spectrogram.
+    times : array-like
+        List of times for the spectrogram.
+    spec_2d : 2D array-like
+        Power spectral densities of the spectrogram pixels.
+
+    """
+    n_octaves = int(np.log2(f_range[0]/f_range[1]))
+    bins_per_octave = 40
+    n_bins = bins_per_octave*n_octaves
+    hop_length = 2**(n_octaves-1)
+    spec_2d = np.abs(librosa.cqt(signal, sampling_f, hop_length=hop_length,
+                             fmin = f_range[1], n_bins = n_bins,
+                             bins_per_octave = bins_per_octave,
+                             filter_scale = 0.8))
+    freqs = librosa.cqt_frequencies(fmin = 20, n_bins = n_bins,
+                                 bins_per_octave = bins_per_octave)
+    times = hop_length/sampling_f*np.arange(len(spec_2d[0]))
+    return freqs, times, spec_2d
+
+def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000,#pylint: disable=R0914
+                  f_range:list = (24_000, 20), beta:int = 1500,
+                  window_type = 'hamming'):
     """
     Algorithm developed by Nisar, Khan, Tariq in "An Efficient Adaptive Window
     Size Selection Method for Improving Spectrogram Visualization". After a
@@ -306,30 +352,20 @@ def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: di
 
     """
     n_samples = len(signal)
-    amplitudes = np.abs(rfft(signal))
+    amplitudes = np.abs(rfft(signal, n_samples//2+1))
     frequencies = fftfreq(n_samples, 1/sampling_f)[:n_samples//2+1]
     mean = (amplitudes*frequencies).sum()
-    sigma = np.sqrt(((frequencies-mean)**2).sum()/(len(amplitudes-1)))
+    sigma = np.sqrt(((frequencies-mean)**2).sum()/(len(amplitudes)-1))
     if sigma<= beta:
         window_lobe = {'rect' : 2, 'hamming' : 4, 'blackman' : 6}
         width = int(3*sampling_f*window_lobe[window_type]/mean)
         freqs, times, spec_2d = spectrogram(signal, sampling_f, window_type,
                                             width, width//2)
     else:
-        n_octaves = int(np.log2(f_range[1]/f_range[0]))
-        bins_per_octave = 40
-        n_bins = bins_per_octave*n_octaves
-        hop_length = 2**(n_octaves-1)
-        spec_2d = np.abs(librosa.cqt(signal, sampling_f, hop_length=hop_length,
-                                 fmin = f_range[1], n_bins = n_bins,
-                                 bins_per_octave = bins_per_octave,
-                                 filter_scale = 0.8))
-        freqs = librosa.cqt_frequencies(fmin = 20, n_bins = n_bins,
-                                     bins_per_octave = bins_per_octave)
-        times = hop_length/sampling_f*np.arange(len(spec_2d[0]))
+        freqs, times, spec_2d = cqt_algorithm(signal, sampling_f, f_range)
     return freqs, times, spec_2d
 
-def signal_processing(signal:np.ndarray, sampling_f:int=48_000):
+def signal_processing(signal : np.ndarray, time, sampling_f : int = 48_000):
     """
     Extract from the input signal the prevalent frequency in time, using the
     spectrogram generated through nkt_algorithm, and restitutes it along with
@@ -354,6 +390,10 @@ def signal_processing(signal:np.ndarray, sampling_f:int=48_000):
         tm0 = np.argwhere(abs(signal)>1E-3)[0][0] + 300
     except:#pylint: disable=W0702
         tm0 = 0
+    max_frequency=10_240
+    min_frequency=20
+    freqs, times, spec_2d = cqt_algorithm(signal[tm0:], sampling_f,
+                                        f_range=[max_frequency, min_frequency])
     time_list = times + time[tm0]
     main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
                                for i in range(len(times))])
@@ -393,8 +433,9 @@ def frequency_speed(spectrum_emitted, spectrum_acquired, freq_emitted,
             t_acquired = spectrum_acquired[0][np.argwhere(
                                            spectrum_acquired[1]>=frequency)][0]
             delta_t = t_acquired[0]-t_emitted[0]
-            time_list.append(delta_t)
-            frequencies.append(frequency)
+            if delta_t > 0:
+                time_list.append(delta_t)
+                frequencies.append(frequency)
         except:# pylint: disable=bare-except
             pass
     speeds = distance/np.array(time_list)
