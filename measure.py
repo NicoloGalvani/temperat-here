@@ -98,8 +98,10 @@ def produce_signal(sampling_f:int = 48_000, period:float=1, gain:float=10):
     time_series = np.arange(len(wave_series))/sampling_f
     return (time_series, wave_series)
 
-def simulation(signal:np.ndarray, sampling_f:int = 48_000, distance:float = 10,
-               temperature:float = 25, humidity:float = 10):
+
+def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
+                       distance:float = 10, temperature:float = -1,
+                       humidity:float = -1):
     """
     Simulation of the propagation of a soundwave from a speaker to a
     microphone, using package pyroomacoustics. To simulate an environment
@@ -124,9 +126,11 @@ def simulation(signal:np.ndarray, sampling_f:int = 48_000, distance:float = 10,
     distance : float
         Distance between speaker and microphone, in meters. The default is 10.
     temperature : float, optional
-        Temperature of the room, in Celsius degrees. The default is 25.
+        Temperature of the room, in Kelvin. If negative (default -1) it is
+        randomized in operative range [250, 330].
     humidity : float, optional
-        Relative humidity of the room, in percentage. The default is 10.
+        Relative humidity of the room, in percentage. If negative (default -1),
+        it is randomized in operative range [0 - 100].
 
     Returns
     -------
@@ -136,23 +140,101 @@ def simulation(signal:np.ndarray, sampling_f:int = 48_000, distance:float = 10,
        Array of the intensities of the acquired signal.
 
     """
-    room_dim = [1, 4+distance]
+    if temperature < 0:
+        min_temp = 250
+        max_temp = 330
+        temperature = min_temp + np.random.rand()*(max_temp - min_temp)
+    if humidity < 0:
+        max_humidity = 100
+        humidity = max_humidity * np.random.rand()
+    room_dim = [1, 3 + distance]
     room = pra.ShoeBox(room_dim, fs=sampling_f, air_absorption=True,
                        materials=pra.Material(1., 0.15), max_order=0,
-                       temperature = temperature, humidity = humidity)
-    room.set_ray_tracing(receiver_radius=0.5, energy_thres=1e-5,
+                       temperature = temperature-273.15, humidity = humidity)
+    room.set_ray_tracing(receiver_radius=1, energy_thres=1e-5,
                          time_thres=13, hist_bin_size=0.002)
-    mic_position = np.array([0.5,2])
-    distance = [0, distance]
+    mic_position = np.array([0.5,1])
+    speaker_pos = mic_position+[0, distance+1]
     room.add_microphone(mic_position)
-    room.add_source(mic_position+distance, signal=signal)
+    room.add_source(speaker_pos, signal=signal)
     room.simulate()
     mic_signal = room.mic_array.signals[0]
-    mic_time = np.arange(len(mic_signal)) / sampling_f
+    mic_time = np.arange(len(mic_signal))/ sampling_f
     return (mic_time, mic_signal)
 
 def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000, beta:int = 1500,#pylint: disable=R0914
                   window_type = 'hamming', f_range:list = (24_000, 20)):
+def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914
+                       distance:float = 10, temperature:float = -1,
+                       humidity:float = -1):
+    """
+    Simulation of the propagation of a soundwave from a speaker to a
+    microphone. The original signal is transposed into a spectrogram
+    representation, and for each frequency component the travel time is
+    evaluated as Δt = distance / speed(φ). A new spectrogram is produced
+    summing the contributes for each frequency at each arrival time, and it
+    is inverted through griffinlim algorithm to recover a wave signal.
+    It provides better results than 'pyroom' method, but griffinlim algorithm
+    execution time scales worse:
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        The signal which must be emitted from the speaker.
+    frequencies : np.ndarray
+        The signal which must be emitted from the speaker.
+    sampling_f : int, optional
+        Sampling frequency of the signal, in Hertz. The default is 48_000.
+    distance : float
+        Distance between speaker and microphone, in meters. The default is 10.
+    temperature : float, optional
+        Temperature of the room, in Kelvin. If negative (default -1) it is
+        randomized in operative range [250, 330].
+    humidity : float, optional
+        Relative humidity of the room, in percentage. If negative (default -1),
+        it is randomized in operative range [0 - 100].
+
+    Returns
+    -------
+    mic_time : np.ndarray
+       Array of the time sequence of the acquired signal.
+    mic_signal : np.ndarray
+       Array of the intensities of the acquired signal.
+
+    """
+    if temperature < 0:
+        min_temp = 250
+        max_temp = 330
+        temperature = min_temp + np.random.rand()*(max_temp - min_temp)
+    if humidity < 0:
+        max_humidity = 100
+        humidity = max_humidity * np.random.rand()
+    room = Environment(temperature, humidity)
+    max_frequency = 10_240
+    min_frequency = 20
+    freqs, times, spec_2d = cqt_algorithm(signal, sampling_f,
+                                          (max_frequency, min_frequency))
+    attenuation = 10 ** (room.attenuation_factor(freqs)*distance/10
+                         + 2*np.log10(distance) + 1.1)
+    speed_array = room.sound_speed_f(freqs)
+    arrival_times=np.array([[time_0+distance/speed_f for time_0 in times]
+                    for speed_f in speed_array], dtype = np.float32)
+    t_start = arrival_times.min()
+    t_end = arrival_times.max()
+    t_step = times[1] - times[0]
+    time_period_length = int((t_end - t_start) // t_step)
+    final_spec_2d = np.zeros([len(freqs), time_period_length],
+                             dtype = np.float32)
+    arrival_index = ((arrival_times - t_start) // t_step).astype('int32') - 1
+    for index, intensity in enumerate(spec_2d):
+        final_spec_2d[index, arrival_index[index]
+                          ] += intensity/attenuation[index]
+    hop_length = int(0.5*max_frequency//min_frequency)
+    mic_signal = librosa.griffinlim_cqt(final_spec_2d, sr = sampling_f,
+                              fmin = min_frequency, hop_length = hop_length,
+                              bins_per_octave = 40)
+    mic_time = np.arange(len(mic_signal))/sampling_f+t_start
+    return (mic_time, mic_signal)
     """
     Algorithm developed by Nisar, Khan, Tariq in "An Efficient Adaptive Window
     Size Selection Method for Improving Spectrogram Visualization". After a
@@ -232,9 +314,11 @@ def signal_processing(signal:np.ndarray, sampling_f:int=48_000):
         List of the frequencies studied with the spectrogram.
 
     """
-    tm0 = np.argwhere(abs(signal)>1E-1)[0][0] + 300
-    freqs, times, spec_2d = nkt_algorithm(signal[tm0:], sampling_f, [10240,20])
-    time_list = times + tm0/sampling_f
+    try:#trim the silent portion of the signal, if there is any
+        tm0 = np.argwhere(abs(signal)>1E-3)[0][0] + 300
+    except:#pylint: disable=W0702
+        tm0 = 0
+    time_list = times + time[tm0]
     main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
                                for i in range(len(times))])
     spectrum = (time_list, main_component)
@@ -299,12 +383,10 @@ def measure(distance:float=4000, period:float=10, sampling_f:int=153_600,#pylint
     sampling_f : int, optional
         Sampling frequency of the signal, both in emission and acquisition,
         expressed in Hertz. The default is 153_600.
-    method : { 'simulation', 'experiment' }, optional
-        Selects between a measurement conducted in a simulation, or a real-life
-        experiment. The default is 'simulation'.
-    draw : bool, optional
-        If True, it plots the produced and the acquired signals in time and
-        frequency domains. The default is False.
+    method : { 'pyroom', 'corrected', 'experiment' }, optional
+        Selects between a measurement conducted in a simulation, done through
+        a simple formulation of sound propagation, through pyroom-acoustic
+        package, or in a real-life experiment. The default is 'pyroom'.
 
     Returns
     -------
@@ -313,12 +395,13 @@ def measure(distance:float=4000, period:float=10, sampling_f:int=153_600,#pylint
 
     """
     gain_modulation = 10+0.05*(distance-20)
-    signal = produce_signal(sampling_f, period, gain_modulation)
-    if method == 'simulation':
-        temperature = 25
-        humidity = 10
-        microphone = simulation(signal[1], sampling_f, distance,
-                                temperature, humidity)
+    time, signal = produce_signal(sampling_f, period, gain_modulation)
+    if method == 'corrected':
+        mic_time, mic_signal = corrected_simulation(signal, sampling_f, distance,
+                                                    temperature, humidity)
+    elif method == 'pyroom':
+        mic_time, mic_signal = pyroom_simulation(signal, sampling_f, distance,
+                                                 temperature, humidity)
     elif method == 'experiment':
         print('Check that microphone and speaker are at {:.3f}m.'.format(
             distance))
@@ -329,11 +412,12 @@ def measure(distance:float=4000, period:float=10, sampling_f:int=153_600,#pylint
         mic_time = np.arange(len(mic_signal))/sampling_f
         microphone = (mic_time, mic_signal)
     else:
-        raise ValueError('Choose between simulation or experiment')
-    spectrum_emitted, freq_emitted = signal_processing(signal[1], sampling_f)
-    spectrum_acquired,  = signal_processing(microphone[1], sampling_f)# pylint: disable=unbalanced-tuple-unpacking
-    if draw:
-        time_plot(signal, microphone)
+        raise ValueError('Choose between corrected, pyroom or experiment')
+    spectrum_emitted, freq_emitted = signal_processing(signal, time, sampling_f)
+    spectrum_acquired, freq_received = signal_processing(mic_signal,# pylint: disable=unused-variable
+                                                         mic_time, sampling_f)
+    if DRAW:
+        time_plot((time, signal), (mic_time, mic_signal))
         spectra_plot(spectrum_emitted, spectrum_acquired)
     speed_spectrum = frequency_speed(spectrum_emitted, spectrum_acquired,
                                      freq_emitted, distance)
