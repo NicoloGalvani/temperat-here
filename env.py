@@ -232,7 +232,6 @@ class Environment ():#pylint: disable=R0902
     b_results = list
     molar_mass = float
     xww = float
-    ##Possibility to insert also the link to pyroomsound?
 
     def __post_init__(self):
         """
@@ -431,10 +430,10 @@ class Environment ():#pylint: disable=R0902
             List of the corrections for N and O, in s/m
 
         """
-        relax_freqs = np.array([self.freq_relax_nitro(), self.freq_relax_oxy()])
-        t_red = np.array([3352,2239.1]) / self.t_input
-        coeffs = np.array([0.781,0.209])/35
-        if isinstance(frequency,np.ndarray):
+        relax_freqs = np.array([self.freq_relax_nitro(),self.freq_relax_oxy()])
+        t_red = np.array([3352, 2239.1]) / self.t_input
+        coeffs = np.array([0.781, 0.209]) / 35
+        if isinstance(frequency, np.ndarray):
             frequency = frequency.reshape(len(frequency),1)
             relax_freqs = relax_freqs.reshape(1,2)
             t_red = t_red.reshape(1,2)
@@ -443,6 +442,29 @@ class Environment ():#pylint: disable=R0902
         corrections = (coeffs*f_red/ self.sound_speed_0() * f_red/(1+f_red**2)
                          * t_red**2 * np.exp(-t_red))
         return corrections
+    
+    def attenuation_factor(self, frequency:np.ndarray):
+        """
+        Atmospheric atenuation factor for the environment, evaluated for a
+        range of frequencies. 
+
+        Parameters
+        ----------
+        frequency : np.ndarray
+            Frequency of the wave in Hz
+            
+        Returns
+        -------
+        attenuation : np.ndarray
+            Attenuation of the wave for each frequency in input, in m^-1.
+
+        """
+        relax_freqs = np.array([self.freq_relax_nitro(),
+                                self.freq_relax_oxy()]).reshape(1,2)
+        absorption_coeff = self.attenuation_corrections(frequency)*relax_freqs
+        absorption = 2 * np.pi* absorption_coeff.sum(axis=1)
+        attenuation = 0.001 * absorption
+        return attenuation
 
     def sound_speed_f(self, frequency: float = 0 or np.ndarray):
         """
@@ -468,3 +490,4 @@ class Environment ():#pylint: disable=R0902
             c_nitro, c_oxy = self.attenuation_corrections(frequency).T
         sound_speed = 1 / (1/self.sound_speed_0() - c_nitro - c_oxy)
         return sound_speed
+    
