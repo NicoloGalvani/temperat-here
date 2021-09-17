@@ -15,6 +15,7 @@ import pyroomacoustics as pra
 from sklearn.neighbors import KNeighborsRegressor
 from env import Environment
 
+DRAW = False
 
 def time_plot(speaker_signal, mic_signal):
     """
@@ -365,13 +366,15 @@ def frequency_speed(spectrum_emitted, spectrum_acquired, freq_emitted,
     speed_spectrum = np.array([frequencies[30:], speeds[30:]])
     return speed_spectrum
 
-def measure(distance:float=4000, period:float=10, sampling_f:int=153_600,#pylint: disable=R0914
-            method = 'simulation', draw:bool = False):
+def measure(distance:float=4000, period:float=20, sampling_f:int=153_600,#pylint: disable=R0913 disable=R0914
+            method = 'pyroom', temperature:float = -1, humidity:float = -1):
     """
     Produce a varying-frequency signal and study the different speeds for the
     frequencies which compose it. The measurement can be performed in a
     simulation, with the library pyroomacoustics, or in a real-life experiment,
     which would require a high quality setup of speakers and microphones.
+    If DRAW==True, it plots the produced and the acquired signals in time and
+        frequency domains. The default is False.
 
     Parameters
     ----------
