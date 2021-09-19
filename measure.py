@@ -598,6 +598,11 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         Selects between a generation of the database through a simulation, done
         with 'corrected' measure, or through a direct calculation of c(φ) with
         environment class, faster but less accurate. The default is 'theory'.
+    load_and_save : bool, optional
+        If True, the function checks if a database file with the same inputs
+        is already in the folder, and loads it; otherwise it evaluates it and
+        save it in the folder.
+        If False, it evaluates the database as a variable.
 
     Returns
     -------
@@ -607,6 +612,20 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         and the frequencies f_i.
 
     """
+    if load_and_save:
+        prefix = 'sim'
+        if method == 'theory':
+            prefix = 'the'
+        rows_meta = 'H{0}T{1}'.format(humidity_n_samples,temperature_n_samples)
+        columns_meta = 'len{0}max{1}.csv'.format(len(delta_thresholds),
+                                             delta_thresholds[-1])
+        name = prefix+rows_meta+columns_meta
+        folder = 'Databases/'
+        try:
+            database = pd.read_csv(folder+name)
+            return database
+        except:
+            pass
     humidity_min = 0
     humidity_max = 100
     humidities = np.linspace(humidity_min, humidity_max,
@@ -646,6 +665,8 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
     database = database[['Temperature','Humidity', 'Sound_speed_20',
                         *delta_thresholds]]
     database = database.fillna(0)
+    if load_and_save:
+        database.to_csv(folder+name)
     return database
 
 def knn_regressor(database : pd.DataFrame, sample_to_fit : np.ndarray):
