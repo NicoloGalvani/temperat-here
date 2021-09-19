@@ -2,47 +2,95 @@
 dependance on frequency and the regression to the environment conditions
 """
 import time
+import re
 import numpy as np
-import pandas as pd
-from matplotlib import pyplot as plt
-from matplotlib.lines import Line2D
-import seaborn as sns
-from sklearn.neighbors import KNeighborsRegressor
-from env import Environment
+# import pandas as pd
+# from matplotlib import pyplot as plt
+# from matplotlib.lines import Line2D
+# import seaborn as sns
+# from env import Environment
 import measure
 
 
 
+def main():
+    print("""This is temperat-here script, whose scope is to determine temperature and relative humidity of air in an environment, through a measure of sound speed.
+All necessary data to perform a test are already into Databases/ and Data/ folders, but it is possible to generate new databases for other types of tests.""")
+    go_on = True
+    while go_on:
+        commands = input("List of basic commands:\n-database: create a new database from user-defined inputs (NOTE: it can take up to 30 minutes for large arrays of data);\n-simulation: generate a virtual environment of constant temperature and humidity defined by user, and perform a simulated test;\n-experiment: perform a real-life experiment (requires professional microphone and speaker, still not tested);\n-quit: quit the script.\n")
+        commands_splitted = commands.split(" ")
+        if "database" in commands_splitted:
+            database(commands_splitted[1:])
+        elif "simulation" in commands_splitted:
+            simulation(commands_splitted[1:])
+        elif "experiment" in commands_splitted:
+            experiment(commands_splitted[1:])
+        elif "quit" in commands_splitted:
+            go_on = False
+        else:
+            print("Command not recognized.\n")
 
-for test in np.arange(3):
+def find_pattern_in_list(pattern, string_list):
+    return list(filter(re.compile(pattern).match, string_list))
+
+def database(args=None):
+    if not args:
+         print("The database will be stored into 'Databases/' folder, for later uses.")
+         print("Provide database data as desired, in the following format:")
+         print("D-l(integer)-M(float)-m(float) T(integer) H(integer)")
+         print("l,M,m are the length, maximum value and minimum value of delta_thresholds,")
+         print(" T and H the numbers of temperature values and humidity values;")
+         print("If some arguments are not specified, defaults will replace them.")
+         print("The arguments can be directly specified when calling database.")
+         args = input(">>")
+    deltas = find_pattern_in_list("D",args)
+    if deltas:
+        datas = deltas[0][6:].split('-') #cut 'delta' and split
+        try:
+            length = int(find_pattern_in_list("l",datas)[0][1:])
+        except:
+            length = 9
+        try:
+            max_delta = float(find_pattern_in_list("M",datas)[0][1:])
+        except:
+            max_delta=9
+        try:
+            min_delta = float(find_pattern_in_list("m",datas)[0][1:])
+        except:
+            min_delta = 0.05
+        delta_thresholds = measure.generate_delta_thresholds(length, max_delta,
+                                                             min_delta)
+    else:
+        delta_thresholds = measure.generate_delta_thresholds()
+    temp_input = find_pattern_in_list("T",args)
+    if temp_input:
+        temperature_n_samples = int(temp_input[0][1:])
+    else:
+        temperature_n_samples = 21
+    hum_input = find_pattern_in_list("H",args)
+    if hum_input:
+        humidity_n_samples = int(hum_input[0][1:])
+    else:
+        humidity_n_samples = 21
+    print("Generating database")
     start = time.time()
-    measure.DRAW=True
-    distance = 4000#1000*(test+1)
-    period = (1+test)*4
-    temperature = 300
-    humidity = 100
-    speed = measure.measure(distance=distance, period=period, method='pyroom',
-                    humidity=humidity, temperature=temperature)
-    def moving_average(x, w):
-        return np.convolve(x, np.ones(w), 'valid') / w
-    plt.figure()
-    plt.semilogx(speed[0], speed[1], label='raw')
-    for i in range(15,16):
-        velocities = moving_average(speed[1], i)
-        frequencies = moving_average(speed[0], i)
-        plt.semilogx(frequencies, velocities, label=i)
-    plt.title('Distance = {0}m, time = {1}s'.format(distance,period))
-    plt.legend(title='mobile average')
-    plt.show()
+    measure.generate_database(delta_thresholds, humidity_n_samples,
+                             temperature_n_samples, load_and_save=False,
+                             method='theory')
     end = time.time()
-    print('Executed in {:.2f}s'.format(end-start))
+    print("Done in {}s".format(end-start))
 
+def simulation(args=None):
+    pass
+
+def experiment(args=None):
+    pass
+
+if __name__ == "__main__":
+    main()
 # for h in humidities:
-#     # fig, ax = plt.subplots()
-#     # fig.set_figheight(6)
-#     # ax.set_xscale('log')
 #     # ax.set_title(h)
-#     colors = sns.color_palette('deep',len(temperatures))
 #     for t,c in zip(temperatures,colors):
 #         room = Environment(t,h)
 #         attenuations = room.attenuation_corrections(sweep)
