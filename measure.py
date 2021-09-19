@@ -525,9 +525,8 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
 
 ######Stop measure, start analysis
 
-def generate_fingerprint(fingerprint_length: int = 10,#pylint: disable=R0914
-                          humidity_n_samples : int = 21,
-                          temperature_n_samples : int = 21):
+def generate_fingerprint(frequency_data : np.ndarray, speed_data : np.ndarray,
+                         delta_thresholds : np.ndarray):
     """
         This function generates a reference database, from a set of
     humidity_n_samples X temperature_n_samples environments.
@@ -539,15 +538,66 @@ def generate_fingerprint(fingerprint_length: int = 10,#pylint: disable=R0914
 
     Parameters
     ----------
-    fingerprint_length : int, optional
+
+    frequency_data : np.ndarray
+        Array of frequencies of the characteristic curve, expressed in Hz.
+        Must have the same length of frequency_data.
+
+    speed_data : np.ndarray
+        Array of speeds of the characteristic curve, expressed in m/s.
+        Must have the same length of frequency_data.
+
+    delta_thresholds : np.ndarray
         Number of Δc values to take as reference, in a range between
         5mm/s and 75mm/s. The default is 10.
+
+    Returns
+    -------
+    fingerprint : pd.Dataframe
+        Fingerprints of the sample under study. It stores the temperature and
+        humidity of the environment, the 0Hz sound speed and the
+        frequencies f_i.
+
+    """
+
+    if len(frequency_data)!=len(speed_data):
+        print(len(frequency_data), len(speed_data))
+        raise ValueError("frequency_data and speed_data must have the same length")
+    speed_20_f = speed_data[0]
+    delta_speed = speed_data-speed_20_f
+    fingerprint = np.array([frequency_data[np.argwhere(abs(delta_speed)>=dt)][0][0]
+                    if frequency_data[np.argwhere(abs(delta_speed)>=dt)].size>0
+                    else 0 for dt in delta_thresholds])
+    fingerprint = np.insert(fingerprint, 0, speed_20_f)
+    return fingerprint
+
+def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
+                          humidity_n_samples : int = 21,
+                          temperature_n_samples : int = 21,
+                          method = 'simulation', load_and_save:bool = False):
+    """
+        This function generates a reference database, from a set of
+    humidity_n_samples X temperature_n_samples environments.
+    For each environment the function simulates a frequency sweep, and searches
+    the frequencies f_i where the difference Δc = c(f_i)-c(20Hz) reaches a set
+    of threshold values, called delta_thresholds.
+    These frequencies, alongside with c(20Hz), constitute a fingerprint of the
+    environment state.
+
+    Parameters
+    ----------
+    delta_thresholds : np.ndarray
+        Array of Δc values to take as reference, expressed in m/s.
     humidity_n_samples : int, optional
         Dimension of the sampling of humidity values, in a range between
         0% and 100%. The default is 21.
     temperature_n_samples : int, optional
         Dimension of the sampling of temperature values, in a range between
         0°C and 40°C. The default is 21.
+    method : { 'simulation', 'theory'}, optional
+        Selects between a generation of the database through a simulation, done
+        with 'corrected' measure, or through a direct calculation of c(φ) with
+        environment class, faster but less accurate. The default is 'theory'.
 
     Returns
     -------
@@ -565,24 +615,29 @@ def generate_fingerprint(fingerprint_length: int = 10,#pylint: disable=R0914
     temperature_max = 313.15
     temperatures = np.linspace(temperature_min, temperature_max,
                               temperature_n_samples)
-    frequency_min = 20
-    frequency_max = 22_500
-    frequency_n_samples = 1000
-    sweep = np.geomspace(frequency_min, frequency_max, frequency_n_samples)
-    delta_speed_min = 8E-3
-    delta_speed_max = 75E-3
-    delta_thresholds = np.linspace(delta_speed_min, delta_speed_max,
-                                  fingerprint_length)
     data = []
     for h_i in humidities:
         for t_i in temperatures:
-            room = Environment(t_i, h_i)
-            speed_varying_f = room.sound_speed_f(sweep)
+            if method == 'theory':
+                frequency_min = 20
+                frequency_max = 10000
+                frequency_n_samples = 1000
+                frequencies = np.geomspace(frequency_min, frequency_max, 
+                                           frequency_n_samples)
+                room = Environment(t_i, h_i)
+                speed_varying_f = room.sound_speed_f(frequencies)
+            elif method == 'simulation':
+                speed_spectrum = measure(temperature=t_i, humidity=h_i,
+                                         method='pyroom')
+                speed_varying_f = speed_spectrum[1]
+                frequencies = speed_spectrum[0]
+            else:
+                raise ValueError('Choose between theory or simulation')
             speed_20_f = speed_varying_f[0]
-            delta_speed = speed_varying_f-speed_20_f
-            fingerprint = {dt:sweep[np.nonzero(delta_speed>dt)[0]][0]
-                            for dt in delta_thresholds
-                            if sweep[np.nonzero(delta_speed>dt)[0]].size>0}
+            fingerprint_array = generate_fingerprint(frequencies, speed_varying_f,
+                                               delta_thresholds)
+            fingerprint = {threshold : fingerprint_array[i+1]
+                           for i, threshold in enumerate(delta_thresholds)}
             fingerprint['Temperature'] = t_i - 273.15
             fingerprint['Humidity'] = h_i
             fingerprint['Sound_speed_20'] = speed_20_f
@@ -612,12 +667,14 @@ def knn_regressor(database : pd.DataFrame, sample_to_fit : np.ndarray):
         array of the [temperature, humidity] values yielded by the regression
 
     """
-    sample_to_fit = sample_to_fit.fillna(0)
-    x_vec = database.drop(['Temperature','Humidity'],axis=1)
+    sample_to_fit = sample_to_fit.reshape(1, -1)
+    x_vec = database.drop(['Temperature','Humidity'], axis=1)
     y_vec = database[['Temperature','Humidity']]
     def weight_gauss(dist, sig=2.0):
         return np.exp(-dist**2/(2*sig**2))
     neigh = KNeighborsRegressor(n_neighbors=6, weights=weight_gauss)
     neigh.fit(x_vec, y_vec)
     environment_conditions = neigh.predict(sample_to_fit)
+    if np.isnan(environment_conditions).any():
+        print(len(sample_to_fit[0]))
     return environment_conditions
