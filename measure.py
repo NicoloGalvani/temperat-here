@@ -68,7 +68,6 @@ def spectra_plot(spectrum_emitted, spectrum_acquired):
     axis[1].legend()
     axis[1].grid()
 
-def produce_signal(sampling_f:int = 48_000, period:float=1, gain:float=10):
     """
     Production of a up-chirp signal from 20Hz to 10.240kHz, modulated to
     compensate the asymmetric-in-frequency attenuation due to air.
@@ -76,9 +75,11 @@ def produce_signal(sampling_f:int = 48_000, period:float=1, gain:float=10):
     Parameters
     ----------
     sampling_f : int, optional
-        Sampling frequency of the signal, in Hertz. The default is 48_000.
+        Sampling frequency of the signal, in Hz. The default is 48_000.
     period : float, optional
         Period of the signal, in seconds. The default is 1.
+    max_frequency: int, optional
+        Maximum frequency of the signal produced, in Hz. The default is 10_240.
     gain : float, optional
         Baseline gain of the signal. The default is 10.
 
@@ -199,8 +200,8 @@ def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
     return (mic_time, mic_signal)
 
 def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914
-                       distance:float = 10, temperature:float = -1,
-                       humidity:float = -1):
+                       max_frequency:int = 10_240, distance:float = 10,
+                       temperature:float = -1, humidity:float = -1):
     """
     Simulation of the propagation of a soundwave from a speaker to a
     microphone. The original signal is transposed into a spectrogram
@@ -215,10 +216,10 @@ def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: di
     ----------
     signal : np.ndarray
         The signal which must be emitted from the speaker.
-    frequencies : np.ndarray
-        The signal which must be emitted from the speaker.
     sampling_f : int, optional
         Sampling frequency of the signal, in Hertz. The default is 48_000.
+    max_frequency: int, optional
+        Maximum frequency of the signal produced, in Hz. The default is 10_240.
     distance : float
         Distance between speaker and microphone, in meters. The default is 10.
     temperature : float, optional
@@ -244,9 +245,8 @@ def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: di
         max_humidity = 100
         humidity = max_humidity * np.random.rand()
     room = Environment(temperature, humidity)
-    max_frequency = 10_240
     min_frequency = 20
-    freqs, times, spec_2d = cqt_algorithm(signal, sampling_f,
+    freqs, times, spec_2d = nkt_algorithm(signal, sampling_f,
                                           (max_frequency, min_frequency))
     attenuation = 10 ** (room.attenuation_factor(freqs)*distance/10
                          + 2*np.log10(distance) + 1.1)
@@ -257,15 +257,18 @@ def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: di
     t_end = arrival_times.max()
     t_step = times[1] - times[0]
     time_period_length = int((t_end - t_start) // t_step)
-    final_spec_2d = np.zeros([len(freqs), time_period_length],
-                             dtype = np.float32)
+    final_spec_2d = np.zeros([len(freqs), time_period_length])
     arrival_index = ((arrival_times - t_start) // t_step).astype('int32') - 1
     for index, intensity in enumerate(spec_2d):
         final_spec_2d[index, arrival_index[index]
                           ] += intensity/attenuation[index]
-    hop_length = int(0.5*max_frequency//min_frequency)
-    mic_signal = librosa.griffinlim_cqt(final_spec_2d, sr = sampling_f,
-                              fmin = min_frequency, hop_length = hop_length,
+    # hop_length = 2**(int(np.log2(max_frequency/min_frequency))-1)
+    if (freqs[1]-freqs[0])==(freqs[101]-freqs[100]):
+        mic_signal = librosa.griffinlim(final_spec_2d, #hop_length=hop_length,
+                                        )
+    else:
+        mic_signal = librosa.griffinlim_cqt(final_spec_2d, sr = sampling_f,
+                              fmin = min_frequency, #hop_length = hop_length,
                               bins_per_octave = 40)
     mic_time = np.arange(len(mic_signal))/sampling_f+t_start
     return (mic_time, mic_signal)
@@ -302,7 +305,7 @@ def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
 
     """
     n_octaves = int(np.log2(f_range[0]/f_range[1]))
-    bins_per_octave = 40
+    bins_per_octave = 45
     n_bins = bins_per_octave*n_octaves
     hop_length = 2**(n_octaves-1)
     spec_2d = np.abs(librosa.cqt(signal, sampling_f, hop_length=hop_length,
@@ -365,7 +368,8 @@ def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000,#pylint: disable=R091
         freqs, times, spec_2d = cqt_algorithm(signal, sampling_f, f_range)
     return freqs, times, spec_2d
 
-def signal_processing(signal : np.ndarray, time, sampling_f : int = 48_000):
+def signal_processing(signal:np.ndarray, time:np.ndarray,
+                      sampling_f:int = 48_000, max_frequency:int = 10_240):
     """
     Extract from the input signal the prevalent frequency in time, using the
     spectrogram generated through nkt_algorithm, and restitutes it along with
@@ -377,6 +381,8 @@ def signal_processing(signal : np.ndarray, time, sampling_f : int = 48_000):
         The signal which is to process.
     sampling_f : int, optional
         Sampling frequency of the signal, in Hertz. The default is 48_000.
+    max_frequency: int, optional
+        Maximum frequency of the signal produced, in Hz. The default is 10_240.
 
     Returns
     -------
@@ -390,9 +396,8 @@ def signal_processing(signal : np.ndarray, time, sampling_f : int = 48_000):
         tm0 = np.argwhere(abs(signal)>1E-3)[0][0] + 300
     except:#pylint: disable=W0702
         tm0 = 0
-    max_frequency=10_240
     min_frequency=20
-    freqs, times, spec_2d = cqt_algorithm(signal[tm0:], sampling_f,
+    freqs, times, spec_2d = nkt_algorithm(signal[tm0:], sampling_f,
                                         f_range=[max_frequency, min_frequency])
     time_list = times + time[tm0]
     main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
@@ -400,8 +405,8 @@ def signal_processing(signal : np.ndarray, time, sampling_f : int = 48_000):
     spectrum = (time_list, main_component)
     return spectrum, freqs
 
-def frequency_speed(spectrum_emitted, spectrum_acquired, freq_emitted,
-                    distance:float=10):
+def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
+                    freq_emitted:np.ndarray, distance:float=10):
     """
     Searches the first appearence in the signals of the frequencies listed in
     freqs, and compares their times to determine the speed of sound for that
@@ -409,9 +414,9 @@ def frequency_speed(spectrum_emitted, spectrum_acquired, freq_emitted,
 
     Parameters
     ----------
-    spectrum_emitted : array-like
+    spectrum_emitted : np.ndarray
         It contains (times, frequency) arrays for the speaker spectrum.
-    spectrum_acquired : array-like
+    spectrum_acquired : np.ndarray
         It contains (times, frequency) arrays for the microphone spectrum.
     freq_emitted : np.ndarray
         List of the frequencies studied with the spectrogram.
@@ -442,15 +447,16 @@ def frequency_speed(spectrum_emitted, spectrum_acquired, freq_emitted,
     speed_spectrum = np.array([frequencies[30:], speeds[30:]])
     return speed_spectrum
 
-def measure(distance:float=4000, period:float=20, sampling_f:int=153_600,#pylint: disable=R0913 disable=R0914
-            method = 'pyroom', temperature:float = -1, humidity:float = -1):
+def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: disable=R0913 disable=R0914
+            max_frequency:int = 1000, method = 'corrected',
+            temperature:float = -1, humidity:float = -1):
     """
     Produce a varying-frequency signal and study the different speeds for the
     frequencies which compose it. The measurement can be performed in a
     simulation, with the library pyroomacoustics, or in a real-life experiment,
     which would require a high quality setup of speakers and microphones.
     If DRAW==True, it plots the produced and the acquired signals in time and
-        frequency domains. The default is False.
+    frequency domains. The default is False.
 
     Parameters
     ----------
@@ -474,9 +480,11 @@ def measure(distance:float=4000, period:float=20, sampling_f:int=153_600,#pylint
 
     """
     gain_modulation = 10+0.05*(distance-20)
-    time, signal = produce_signal(sampling_f, period, gain_modulation)
+    time, signal = produce_signal(sampling_f, period,
+                                  max_frequency, gain_modulation)
     if method == 'corrected':
-        mic_time, mic_signal = corrected_simulation(signal, sampling_f, distance,
+        mic_time, mic_signal = corrected_simulation(signal, sampling_f,
+                                                    max_frequency, distance,
                                                     temperature, humidity)
     elif method == 'pyroom':
         mic_time, mic_signal = pyroom_simulation(signal, sampling_f, distance,
