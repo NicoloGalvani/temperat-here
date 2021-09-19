@@ -485,7 +485,7 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
         Period length of the signal, expressed in seconds. The default is 10.
     sampling_f : int, optional
         Sampling frequency of the signal, both in emission and acquisition,
-        expressed in Hertz. The default is 153_600.
+        expressed in Hertz. The default is 22_050.
     method : { 'pyroom', 'corrected', 'experiment' }, optional
         Selects between a measurement conducted in a simulation, done through
         a simple formulation of sound propagation, through pyroom-acoustic
@@ -524,6 +524,10 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
     return speed_spectrum
 
 ######Stop measure, start analysis
+
+def generate_delta_thresholds(length:int = 9, max_delta:float= 9,
+                              min_delta:float = 0.05):
+    return np.linspace(min_delta, max_delta, length)
 
 def generate_fingerprint(frequency_data : np.ndarray, speed_data : np.ndarray,
                          delta_thresholds : np.ndarray):
