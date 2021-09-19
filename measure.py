@@ -68,6 +68,20 @@ def spectra_plot(spectrum_emitted, spectrum_acquired):
     axis[1].legend()
     axis[1].grid()
 
+def speed_plot(frequencies, velocities):
+    fig, axis = plt.subplots()
+    fig.set_figheight(10)
+    fig.set_figwidth(10)
+    axis.set(title='Speed spectrum', ylabel='Speed (m/s)',
+             xlabel='Frequency (Hz)')
+    axis.semilogx(frequencies, velocities, 
+                  label='mobile average over 15 points')
+    axis.legend()
+    axis.grid()
+    # plt.show()
+
+def produce_signal(sampling_f:int = 48_000, period:float=1,
+                   max_frequency:int = 10_240, gain:float=10):
     """
     Production of a up-chirp signal from 20Hz to 10.240kHz, modulated to
     compensate the asymmetric-in-frequency attenuation due to air.
@@ -444,7 +458,11 @@ def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
         except:# pylint: disable=bare-except
             pass
     speeds = distance/np.array(time_list)
-    speed_spectrum = np.array([frequencies[30:], speeds[30:]])
+    def smoothe(x, w):
+        return np.convolve(x, np.ones(w), 'valid') / w
+    velocities = smoothe(speeds[30:], 15)
+    frequencies = smoothe(frequencies[30:], 15)
+    speed_spectrum = np.array([frequencies, velocities])
     return speed_spectrum
 
 def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: disable=R0913 disable=R0914
@@ -493,14 +511,16 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
         mic_time, mic_signal = exp_record(signal, sampling_f, distance)
     else:
         raise ValueError('Choose between corrected, pyroom or experiment')
-    spectrum_emitted, freq_emitted = signal_processing(signal, time, sampling_f)
-    spectrum_acquired, freq_received = signal_processing(mic_signal,# pylint: disable=unused-variable
-                                                         mic_time, sampling_f)
+    spectrum_emitted, freq_emitted = signal_processing(signal, time, sampling_f,
+                                                       max_frequency)
+    spectrum_acquired, freq_received = signal_processing(mic_signal, mic_time,# pylint: disable=unused-variable
+                                                    sampling_f, max_frequency)
+    speed_spectrum = frequency_speed(spectrum_emitted, spectrum_acquired,
+                                     freq_emitted, distance)
     if DRAW:
         time_plot((time, signal), (mic_time, mic_signal))
         spectra_plot(spectrum_emitted, spectrum_acquired)
-    speed_spectrum = frequency_speed(spectrum_emitted, spectrum_acquired,
-                                     freq_emitted, distance)
+        speed_plot(speed_spectrum[0], speed_spectrum[1])
     return speed_spectrum
 
 ######Stop measure, start analysis
