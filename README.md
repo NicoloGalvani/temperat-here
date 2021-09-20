@@ -1,6 +1,16 @@
 # Temperat-here
 Sound's speed in air depends on temperature, humidity and pressure; fixing the latter parameters it is possible to use sounds as a temperature probe. This project inspects the error propagation in this type of measurements, taking as reference the article "The variation of the specific heat ratio and the speed of sound in air with temperature, pressure, humidity, and CO2 concentration", by O.Cramer. 
 
+It requires the following packages for execution:
+ - numpy
+ - scipy
+ - pandas
+ - matplotlib (https://matplotlib.org/)
+ - seaborn (https://seaborn.pydata.org/#)
+ - librosa (https://librosa.org/)
+ - sounddevice (https://pypi.org/project/sounddevice/)
+ - pyroomacoustics (https://pyroomacoustics.readthedocs.io/en/pypi-release/pyroomacoustics.room.html)
+ - sklearn (https://scikit-learn.org/stable/)
 
 Theory
 -
@@ -77,6 +87,7 @@ Code structure:
 -
 The project is composed by the following blocks:
 - the folder Data: contains the input for Environment class, the experimental data of air composition and the second virial coefficients of its main components; each file specifies the source paper.
+- the folder Databases: contains the databases realized for signal classification, and can be filled with new databases using function measure.generate_database().
 - the file env.py: contains the definition of Environment class, which resembles a space where temperature, humidity and pressure are homogeneous and constant. It contains the method necessary to evaluate the speed of sound at a desired frequency cφ(T,H,P).
 - the file test_env.py: contains tests for Environment class, compares the calculations with experimental data taken from  <a href="https://web.archive.org/web/20190508003406/http://www.kayelaby.npl.co.uk/general_physics/2_4/2_4_1.html#speed_of_sound_in_air">Kaye & Laby database</a>.
 - the file measure.py: contains the functions for signal preparation, measurement and analysis. It provides the option to perform three types of measurements:
@@ -95,14 +106,26 @@ The first time an instance is created:
 
 - It fits the second virial coefficients with appropriate functions and stores the optimal parameters and covariances as class attributes.
 
-These data will then be used for each instance to evaluate the mixing second virial coefficient Bmix(T,P,RH) and the adiabatic constant γ(T,P,RH), which are sufficient to evaluate c0(T,P,RH). 
+The room methods can evaluate:
+ - the mixing second virial coefficient Bmix(T, P, RH);
+ - the adiabatic constant γ(T, P, RH);
+ - the attenuation coefficient α(f, T, RH);
+ - sound speed c(T, P, RH, f). 
 
 **Measure**
+This module contains the procedures for the actual measure, both in experimental and simulated conditions, and for following analysis.
+The main function is measure(), which in order:
+ - calls produce_signal() to generate a chirp-wave with the required freqency range;
+ - calls one between exp_record(), pyroom_simulation() and decomposed_simulation(), to obtain the received signal;
+ - calls signal_processing() on both the emitted and the received signals, to obtain the spectrum (main frequency for each time) and list of frequencies;
+ - calls frequency_speed(), to evaluate the speed of each frequency comparing the two spectra;
+ - if the global variable DRAW is True, calls time_plot(), spectra_plot() and speed_plot() to show the results;
+ - returns as output the speed_spectrum, a 2D array of the type (frequencies, speed).
 
+Function generate_delta_thresholds() returns an array of thresholds Δc = c(f)-c(20Hz), which the speed spectrum can reach at varying frequencies f(T,RH).
+The result of measure() function can be processed with generate_fingerprint(), which applies the delta_threshold array to the speed spectrum and determines the minimum frequencies which go over the specific Δc: this array is called fingerprint.
+Function generate_database() collects a series of fingerprints for a wide array of T, RH, with the desired type of delta_threshold applied; it can store them in 'Databases/' folder, to process them once and use them only when required.
+A fingerprint can be classified through knn_regressor(), which takes as training set a database, and applies kernel-nearest-neighbour classification method using 10 nearest-neighbours, returning as output the labels (Temperature, Relative Humidity).
 
--
-
-After having tested that this procedure works, next steps will be:
-
--To simulate how a real ambience would affect such a measurements, including considerations regarding frequency, absorption and sound analysis with package 'pyroomacoustics' https://github.com/LCAV/pyroomacoustics.
-
+**Main**
+This package contains the command line interface instructions, and calls functions from env.py and measure.py to show the results. Its main function does not require any optional argument, and provides a step-by-step explanation of the commands and options to use.
