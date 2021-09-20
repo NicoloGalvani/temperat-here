@@ -94,7 +94,7 @@ def speed_plot(frequencies, velocities):
     plt.tight_layout()
     plt.show()
 
-def produce_signal(sampling_f:int = 48_000, period:float=1,
+def produce_signal(sampling_f:int = 22_050, period:float=1,
                    max_frequency:int = 10_240, gain:float=10):
     """
     Production of a up-chirp signal from 20Hz to 10.240kHz, modulated to
@@ -119,7 +119,6 @@ def produce_signal(sampling_f:int = 48_000, period:float=1,
        Array of the intensities of the signal.
 
     """
-    max_frequency = 10_240
     min_frequency = 20
     crescendo = gain*librosa.chirp(min_frequency, max_frequency,
                                    sampling_f, duration = period)
@@ -128,7 +127,7 @@ def produce_signal(sampling_f:int = 48_000, period:float=1,
     time_series = np.arange(len(wave_series))/sampling_f
     return (time_series, wave_series)
 
-def exp_record (signal : np.ndarray, sampling_f : int = 48_000,
+def exp_record (signal : np.ndarray, sampling_f : int = 22_050,
                        distance:float = 1000):
     """
     Emit a sound through hardware speaker and record it through the microphone.
@@ -155,13 +154,21 @@ def exp_record (signal : np.ndarray, sampling_f : int = 48_000,
 
     """
 
-    print('Check that microphone and speaker are at {:.3f}m.'.format(
-        distance))
+    print('Check that microphone and speaker are at {:.3f}m.'.format(distance))
     input("Press Enter to start acquisition...")
+    period = len(signal)/sampling_f
+    min_distance_to_avoid_superimposition = period*360
     extended_signal = np.concatenate((signal, np.zeros(len(signal))))
-    mic_signal = sd.playrec(extended_signal, samplerate=sampling_f,
-                            channels=1, out=np.zeros([3*len(signal),1]))
+    if distance < min_distance_to_avoid_superimposition:
+        mic_signal = sd.playrec(extended_signal, samplerate=sampling_f,
+                            channels=1, out=np.zeros([2*len(signal),1]))
+    else:
+        extended_signal = np.concatenate((extended_signal, np.zeros(2*len(signal))))
+        mic_signal = sd.playrec(extended_signal, samplerate=sampling_f,
+                            channels=1, out=np.zeros([4*len(signal),1]))
+    sd.wait()
     mic_time = np.arange(len(mic_signal))/sampling_f
+    print('Signal acquired, start analysis (if the distance is too small it could fail.')
     return mic_time, mic_signal
 
 def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
