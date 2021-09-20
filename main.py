@@ -4,11 +4,10 @@ dependance on frequency and the regression to the environment conditions
 import time
 import re
 import numpy as np
-# import pandas as pd
-# from matplotlib import pyplot as plt
-# from matplotlib.lines import Line2D
-# import seaborn as sns
-# from env import Environment
+from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
+import seaborn as sns
+from env import Environment
 import measure
 
 def main():
@@ -28,12 +27,14 @@ def main():
               "-quit: quit the script.")
         commands = input(">>")
         commands_splitted = commands.split(" ")
-        if "database" in commands_splitted:
-            database(commands_splitted[1:])
+        if "theory" in commands_splitted:
+            theory()
         elif "simulation" in commands_splitted:
             simulation(commands_splitted[1:])
         elif "experiment" in commands_splitted:
             experiment(commands_splitted[1:])
+        elif "database" in commands_splitted:
+            database(commands_splitted[1:])
         elif "quit" in commands_splitted:
             go_on = False
         else:
@@ -309,36 +310,50 @@ def experiment(args=None):
     end = time.time()
     print("Done in {}s".format(end-start))
 
+def theory():
+    print("Temperature, humidity and pressure concur to modify the virial coefficients\n",
+          "in molecular many-body interaction, even though pressure effect is negligible.\n",
+          "Adiabatic constant is proportional to the ratio between first and second derivative\n",
+          "of second virial coefficient, and transfer its dependence to sound speed.\n",
+          "On a second level, the sound absorption due to nitrogen and oxygen is frequency dependent,\n",
+          "with an inpact on both sound attenuation and sound speed.\n",
+          "The following plots, realized using methods of class env.Environment, show these effects.\n")
+    humidities = np.arange(0, 101, 5)
+    temperatures = np.arange(273.15, 314, 4)
+    sweep = np.geomspace(20, 22_050, 1000)
+    colors = sns.color_palette('deep', len(temperatures))
+    legend_elements = [Line2D([0],[0], markersize=8, color=c, label=t-273.15)
+                        for t, c in zip(temperatures, colors)]
+    fig, axis = plt.subplots(2, 2, sharex = 'col')
+    fig.set_figheight(10)
+    fig.set_figwidth(10)
+    plt.suptitle("Temperature, humidity and frequency effects on sound")
+    axis[0,0].set(ylabel='Adiabatic constant')
+    axis[0,0].grid()
+    axis[0,1].set(ylabel='Atmospheric attenuation at RH=50% (1/m)')
+    axis[0,1].grid()
+    axis[1,0].set(ylabel='0-frequency sound speed (m/s)',
+                xlabel = 'Relative Humidity (%)')
+    axis[1,0].grid()
+    axis[1,1].set(ylabel='Sound speed frequency variation at RH=50% (m/s)',
+                xlabel = 'Frequency (Hz)')
+    axis[1,1].grid()
+    axis[1,1].set_xscale('log')
+    for temp, color in zip(temperatures,colors):
+        rooms = [Environment(temp, hum) for hum in humidities]
+        adiabatic_coefficients = [room.gamma_adiabatic() for room in rooms]
+        speed_0 = [room.sound_speed_0() for room in rooms]
+        attenuations = rooms[11].attenuation_factor(sweep)
+        speed = rooms[11].sound_speed_f(sweep)
+        delta_speed = speed-speed[0]
+        axis[0,0].plot(humidities, adiabatic_coefficients, color=color)
+        axis[1,0].plot(humidities, speed_0, color=color)
+        axis[0,1].plot(sweep, attenuations, color=color)
+        axis[1,1].plot(sweep, delta_speed, color=color)
+    plt.legend(handles = legend_elements, bbox_to_anchor = (1.05, 1),
+               loc = 'upper left', title = 'Temperature (°C)')
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == "__main__":
     main()
-# for h in humidities:
-#     # ax.set_title(h)
-#     for t,c in zip(temperatures,colors):
-#         room = Environment(t,h)
-#         attenuations = room.attenuation_corrections(sweep)
-#         speed = room.sound_speed_f(sweep)
-#         delta_speed = speed-speed[0]
-#         # plt.plot(sweep,delta_speed,color=c,label=t)
-#         # fingerprint = [sweep[np.nonzero(delta_speed>dt)[0]][0]
-#         #                 for dt in delta_thresholds
-#         #                 if sweep[np.nonzero(delta_speed>dt)[0]].size>0]
-#         # data.append({'Temperature':t, 'Humidity':h,'Fingerprint':fingerprint})
-#         for dt in delta_thresholds:
-#             frequencies_above_td = sweep[np.nonzero(delta_speed>dt)[0]]
-#             # frequency_treshold = np.nan
-#             if frequencies_above_td.size>0:
-#                 frequency_treshold = frequencies_above_td[0]
-#                 data.append({'Temperature':t, 'Humidity':h, 'Delta_c':dt,
-#                              'Frequency':frequency_treshold})
-#         # # delta_c = np.sum(speed[0]/(1/(attenuations*speed[0])-1),1)
-#         # print(max(delta_speed))
-#         # plt.plot(sweep,attenuations.T[0], color=c, linestyle='dotted')
-#         # plt.plot(sweep,attenuations.T[1], color=c, linestyle='dashed')
-#         # plt.plot(sweep,attenuations.T[0]+attenuations.T[1], color=c, label=t)
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left',
-#                    title='Temperature (K)')
-# Database = pd.DataFrame(data)
-# Database.to_csv('Fingerprint_db.txt')
-# g = sns.relplot(data=Database, x='Delta_c', y = 'Frequency', hue='Humidity',
-#             col='Temperature', col_wrap=4,)
-# g.set(yscale="log")
