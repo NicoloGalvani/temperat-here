@@ -667,6 +667,7 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         folder = 'Databases/'
         try:
             database = pd.read_csv(folder+name)
+            database = database.drop('Unnamed: 0')
             return database
         except:#pylint: disable=W0702
             pass
