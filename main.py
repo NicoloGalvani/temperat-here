@@ -11,14 +11,22 @@ import numpy as np
 # from env import Environment
 import measure
 
-
-
 def main():
-    print("""This is temperat-here script, whose scope is to determine temperature and relative humidity of air in an environment, through a measure of sound speed.
-All necessary data to perform a test are already into Databases/ and Data/ folders, but it is possible to generate new databases for other types of tests.""")
+    print("This is temperat-here script, whose scope is to determine temperature and \n",
+          "relative humidity of air in an environment, through a measure of sound speed.\n",
+          "All necessary data to perform a test are already into Databases/ and Data/ folders,\n",
+          " but it is possible to generate new databases for other types of tests.")
     go_on = True
     while go_on:
-        commands = input("List of basic commands:\n-database: create a new database from user-defined inputs (NOTE: it can take up to 30 minutes for large arrays of data);\n-simulation: generate a virtual environment of constant temperature and humidity defined by user, and perform a simulated test;\n-experiment: perform a real-life experiment (requires professional microphone and speaker, still not tested);\n-quit: quit the script.\n")
+        print("\nList of basic commands:\n",
+              "-theory: hints to theory and examples of use of env package;\n",
+              "-database: create a new database from user-defined inputs",
+              "(NOTE: it can take up to 30 minutes for large arrays of data);\n",
+              "-simulation: generate a virtual environment of constant temperature",
+              "and humidity defined by user, and perform a simulated test;\n",
+              "-experiment: perform a real-life experiment (requires large spaces, not tested deeply);\n",
+              "-quit: quit the script.")
+        commands = input(">>")
         commands_splitted = commands.split(" ")
         if "database" in commands_splitted:
             database(commands_splitted[1:])
@@ -36,14 +44,14 @@ def find_pattern_in_list(pattern, string_list):
 
 def database(args=None):
     if not args:
-         print("The database will be stored into 'Databases/' folder, for later uses.")
-         print("Provide database data as desired, in the following format:")
-         print("D-l(integer)-M(float)-m(float) T(integer) H(integer)")
-         print("l,M,m are the length, maximum value and minimum value of delta_thresholds,")
-         print(" T and H the numbers of temperature values and humidity values;")
-         print("If some arguments are not specified, defaults will replace them.")
-         print("The arguments can be directly specified when calling database.")
-         args = input(">>").split(' ')
+        print("The database will be stored into 'Databases/' folder, for later uses.\n",
+        "Provide database data as desired, in the following format:\n",
+        "D-l(integer)-M(float)-m(float) T(integer) H(integer)\n",
+        "l,M,m are the length, maximum value and minimum value of delta_thresholds,\n",
+        " T and H the numbers of temperature values and humidity values;\n",
+        "If some arguments are not specified, defaults will replace them.\n",
+        "The arguments can be directly specified when calling database.\n")
+        args = input(">>").split(' ')
     deltas = find_pattern_in_list("D",args)
     if deltas:
         datas = deltas[0][2:].split('-') #cut 'delta' and split
@@ -83,19 +91,20 @@ def database(args=None):
 
 def simulation(args=None):
     if not args:
-         print("The simulation can be performed in two ways:")
-         print("-A ray-tracing simulation performed through package pyroomacoustics,")
-         print("which can be called with command 'pyroom';")
-         print("-A built-in simulation performed decomposing the signal into its frequencies,")
-         print("which can be called with command 'decomposed'.")
-         print("Provide the simulation conditions in the following format:")
-         print("pyroom/decomposed draw S-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float)")
-         print("if draw is specified, the script will plot wave propagation characteristics,")
-         print("d,p,f are the travel distance, signal period and max studied frequency,")
-         print(" T and H the temperature and humidity values in environment,")
-         print("l,M,m are the length, maximum value and minimum value of delta_thresholds;")
-         print("If some arguments are not specified, defaults will replace them.")
-         print("The arguments can be directly specified when calling simulation.")
+         print("The simulation can be performed in two ways:\n",
+         "A ray-tracing simulation performed through package pyroomacoustics,\n",
+         "without obstacles between speaker and microphone or sorrounding walls.\n"
+         # "which can be called with command 'pyroom';\n",
+         # "-A built-in simulation performed decomposing the signal into its frequencies (slower),\n",
+         # "which can be called with command 'decomposed'.\n",#NOT CORRECTLY WORKING
+         "Provide the simulation conditions in the following format:\n",
+         "pyroom/decomposed draw S-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float)\n",
+         "if draw is specified, the script will plot wave propagation characteristics,\n",
+         "d,p,f are the travel distance, signal period and max studied frequency,\n",
+         " T and H the temperature and humidity values in environment,\n",
+         "l,M,m are the length, maximum value and minimum value of delta_thresholds;\n",
+         "If some arguments are not specified, defaults will replace them.\n",
+         "The arguments can be directly specified when calling simulation.\n")
          args = input(">>").split(' ')
     if 'decomposed' in args:
         method = 'decomposed'
@@ -189,18 +198,18 @@ def simulation(args=None):
 
 def experiment(args=None):
     if not args:
-         print("The experiment requires to put the microphone and the speaker in an open space")
-         print("or in an anechoic room, placing them at the desired distance.")
-         print("At the present stage, the recommended value is on the order of km.")
-         print("Specify experimental conditions in the following format:")
-         print("draw E-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float)")
-         print("if draw is specified, the script will plot wave propagation characteristics,")
-         print("d,p,f are the travel distance, signal period and max studied frequency,")
-         print(" T and H the temperature and humidity values in environment, to test accuracy,")
-         print("l,M,m are the length, maximum value and minimum value of delta_thresholds;")
-         print("If some arguments are not specified, defaults will replace them.")
-         print("The arguments can be directly specified when calling experiment.")
-         args = input(">>").split(' ')
+        print("The experiment requires to put the microphone and the speaker in an open space\n",
+        "or in an anechoic room, placing them at the desired distance.\n",
+        "At the present stage, the recommended value is on the order of km.\n",
+        "Specify experimental conditions in the following format:\n",
+        "draw E-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float)\n",
+        "if draw is specified, the script will plot wave propagation characteristics,\n",
+        "d,p,f are the travel distance, signal period and max studied frequency,\n",
+        " T and H the temperature and humidity values in environment, to test accuracy,\n",
+        "l,M,m are the length, maximum value and minimum value of delta_thresholds;\n",
+        "If some arguments are not specified, defaults will replace them.\n",
+        "The arguments can be directly specified when calling experiment.\n")
+        args = input(">>").split(' ')
     method = 'experiment'
     if 'draw' in args:
         measure.DRAW = True
@@ -251,7 +260,7 @@ def experiment(args=None):
                                                   max_frequency = max_frequency)
         except:
             raise ValueError("Analysis failed, try to increase the distance.")
-            
+
     else:
         try:
             frequencies, velocities = measure.measure(method = method)
