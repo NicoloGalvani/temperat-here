@@ -43,10 +43,10 @@ def database(args=None):
          print(" T and H the numbers of temperature values and humidity values;")
          print("If some arguments are not specified, defaults will replace them.")
          print("The arguments can be directly specified when calling database.")
-         args = input(">>")
+         args = input(">>").split(' ')
     deltas = find_pattern_in_list("D",args)
     if deltas:
-        datas = deltas[0][6:].split('-') #cut 'delta' and split
+        datas = deltas[0][2:].split('-') #cut 'delta' and split
         try:
             length = int(find_pattern_in_list("l",datas)[0][1:])
         except:
@@ -76,8 +76,8 @@ def database(args=None):
     print("Generating database")
     start = time.time()
     measure.generate_database(delta_thresholds, humidity_n_samples,
-                             temperature_n_samples, load_and_save=False,
-                             method='theory')
+                             temperature_n_samples, load_and_save=True,
+                             method='simulation')
     end = time.time()
     print("Done in {}s".format(end-start))
 
