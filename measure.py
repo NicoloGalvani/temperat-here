@@ -227,7 +227,7 @@ def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
     mic_time = np.arange(len(mic_signal))/ sampling_f
     return (mic_time, mic_signal)
 
-def corrected_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914
+def decomposed_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914
                        max_frequency:int = 10_240, distance:float = 10,
                        temperature:float = -1, humidity:float = -1):
     """
@@ -480,7 +480,7 @@ def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
     return speed_spectrum
 
 def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: disable=R0913 disable=R0914
-            max_frequency:int = 1000, method = 'corrected',
+            max_frequency:int = 1000, method = 'decomposed',
             temperature:float = -1, humidity:float = -1):
     """
     Produce a varying-frequency signal and study the different speeds for the
@@ -500,7 +500,7 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
     sampling_f : int, optional
         Sampling frequency of the signal, both in emission and acquisition,
         expressed in Hertz. The default is 22_050.
-    method : { 'pyroom', 'corrected', 'experiment' }, optional
+    method : { 'pyroom', 'decomposed', 'experiment' }, optional
         Selects between a measurement conducted in a simulation, done through
         a simple formulation of sound propagation, through pyroom-acoustic
         package, or in a real-life experiment. The default is 'pyroom'.
@@ -514,8 +514,8 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
     gain_modulation = 10+0.05*(distance-20)
     time, signal = produce_signal(sampling_f, period,
                                   max_frequency, gain_modulation)
-    if method == 'corrected':
-        mic_time, mic_signal = corrected_simulation(signal, sampling_f,
+    if method == 'decomposed':
+        mic_time, mic_signal = decomposed_simulation(signal, sampling_f,
                                                     max_frequency, distance,
                                                     temperature, humidity)
     elif method == 'pyroom':
@@ -524,7 +524,7 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
     elif method == 'experiment':
         mic_time, mic_signal = exp_record(signal, sampling_f, distance)
     else:
-        raise ValueError('Choose between corrected, pyroom or experiment')
+        raise ValueError('Choose between decomposed, pyroom or experiment')
     spectrum_emitted, freq_emitted = signal_processing(signal, time, sampling_f,
                                                        max_frequency)
     spectrum_acquired, freq_received = signal_processing(mic_signal, mic_time,# pylint: disable=unused-variable
@@ -614,7 +614,7 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         0°C and 40°C. The default is 21.
     method : { 'simulation', 'theory'}, optional
         Selects between a generation of the database through a simulation, done
-        with 'corrected' measure, or through a direct calculation of c(φ) with
+        with 'decomposed' measure, or through a direct calculation of c(φ) with
         environment class, faster but less accurate. The default is 'theory'.
     load_and_save : bool, optional
         If True, the function checks if a database file with the same inputs
