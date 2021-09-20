@@ -67,8 +67,21 @@ def spectra_plot(spectrum_emitted, spectrum_acquired):
     axis[1].set(title='Microphone', xlabel='Time (s)', ylabel='Frequency (Hz)')
     axis[1].legend()
     axis[1].grid()
+    plt.tight_layout()
+    plt.show()
 
 def speed_plot(frequencies, velocities):
+    """
+    Plot of speed of sound VS frequency in the studied environment.
+
+    Parameters
+    ----------
+    frequencies : array-like
+        Vector of frequencies, expressed in Hz.
+    velocities : array-like
+        Vector of velocities at different frequencies, expressed in m/s.
+
+    """
     fig, axis = plt.subplots()
     fig.set_figheight(10)
     fig.set_figwidth(10)
@@ -78,7 +91,8 @@ def speed_plot(frequencies, velocities):
                   label='mobile average over 15 points')
     axis.legend()
     axis.grid()
-    # plt.show()
+    plt.tight_layout()
+    plt.show()
 
 def produce_signal(sampling_f:int = 48_000, period:float=1,
                    max_frequency:int = 10_240, gain:float=10):
