@@ -87,7 +87,7 @@ def speed_plot(frequencies, velocities):
     fig.set_figwidth(10)
     axis.set(title='Speed spectrum', ylabel='Speed (m/s)',
              xlabel='Frequency (Hz)')
-    axis.semilogx(frequencies, velocities, 
+    axis.semilogx(frequencies, velocities,
                   label='mobile average over 15 points')
     axis.legend()
     axis.grid()
@@ -168,7 +168,7 @@ def exp_record (signal : np.ndarray, sampling_f : int = 22_050,
                             channels=1, out=np.zeros([4*len(signal),1]))
     sd.wait()
     mic_time = np.arange(len(mic_signal))/sampling_f
-    print('Signal acquired, start analysis (if the distance is too small it could fail.')
+    print('Signal acquired, start analysis (still under test).')
     return mic_time, mic_signal
 
 def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
@@ -234,7 +234,7 @@ def pyroom_simulation (signal:np.ndarray, sampling_f:int = 48_000,
     mic_time = np.arange(len(mic_signal))/ sampling_f
     return (mic_time, mic_signal)
 
-def decomposed_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914
+def decomposed_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: disable=R0914 disable=R0913
                        max_frequency:int = 10_240, distance:float = 10,
                        temperature:float = -1, humidity:float = -1):
     """
@@ -479,8 +479,9 @@ def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
         except:# pylint: disable=bare-except
             pass
     speeds = distance/np.array(time_list)
-    def smoothe(x, w):
-        return np.convolve(x, np.ones(w), 'valid') / w
+    def smoothe(vector, n_points_averaging):
+        return np.convolve(vector, np.ones(n_points_averaging), 'valid'
+                           ) / n_points_averaging
     velocities = smoothe(speeds[30:], 15)
     frequencies = smoothe(frequencies[30:], 15)
     speed_spectrum = np.array([frequencies, velocities])
@@ -649,7 +650,7 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         try:
             database = pd.read_csv(folder+name)
             return database
-        except:
+        except:#pylint: disable=W0702
             pass
     humidity_min = 0
     humidity_max = 100
@@ -666,7 +667,7 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
                 frequency_min = 20
                 frequency_max = 10000
                 frequency_n_samples = 1000
-                frequencies = np.geomspace(frequency_min, frequency_max, 
+                frequencies = np.geomspace(frequency_min, frequency_max,
                                            frequency_n_samples)
                 room = Environment(t_i, h_i)
                 speed_varying_f = room.sound_speed_f(frequencies)
