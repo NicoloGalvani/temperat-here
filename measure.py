@@ -549,6 +549,24 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
 
 def generate_delta_thresholds(length:int = 9, max_delta:float= 9,
                               min_delta:float = 0.05):
+    """
+    Baseline function to generate an appropriate delta_threshold vector
+
+    Parameters
+    ----------
+    length : int, optional
+        Number of points taken into account. The default is 9.
+    max_delta : float, optional
+        Maximum variation for sound speed. The default is 9.
+    min_delta : float, optional
+        Minimum variation for sound speed. The default is 0.05.
+
+    Returns
+    -------
+    delta_threshold : np.ndarray
+        Vector used for fingerprint preparation of a signal.
+
+    """
     return np.linspace(min_delta, max_delta, length)
 
 def generate_fingerprint(frequency_data : np.ndarray, speed_data : np.ndarray,
