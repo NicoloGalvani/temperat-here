@@ -188,7 +188,117 @@ def simulation(args=None):
     print("Done in {}s".format(end-start))
 
 def experiment(args=None):
-    pass
+    if not args:
+         print("The experiment requires to put the microphone and the speaker in an open space")
+         print("or in an anechoic room, placing them at the desired distance.")
+         print("At the present stage, the recommended value is on the order of km.")
+         print("Specify experimental conditions in the following format:")
+         print("draw E-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float)")
+         print("if draw is specified, the script will plot wave propagation characteristics,")
+         print("d,p,f are the travel distance, signal period and max studied frequency,")
+         print(" T and H the temperature and humidity values in environment, to test accuracy,")
+         print("l,M,m are the length, maximum value and minimum value of delta_thresholds;")
+         print("If some arguments are not specified, defaults will replace them.")
+         print("The arguments can be directly specified when calling experiment.")
+         args = input(">>").split(' ')
+    method = 'experiment'
+    if 'draw' in args:
+        measure.DRAW = True
+    humidity_n_samples = 21
+    temperature_n_samples = 21
+    temp_input = find_pattern_in_list("T",args)
+    if temp_input:
+        datas = temp_input[0].split('-')
+        try:
+            temperature = float(datas[0][1:])
+        except:
+            pass
+        try:
+            temperature_n_samples = float(find_pattern_in_list("l",datas)[0][1:])
+        except:
+            pass
+    hum_input = find_pattern_in_list("H",args)
+    if hum_input:
+        datas = hum_input[0].split('-')
+        try:
+            humidity = float(datas[0][1:])
+        except:
+            pass
+        try:
+            humidity_n_samples = float(find_pattern_in_list("l",datas)[0][1:])
+        except:
+            pass
+    else:
+        humidity = 50
+    experiment = find_pattern_in_list("E", args)
+    if experiment:
+        datas = experiment[0][2:].split('-') #cut 'delta' and split
+        try:
+            distance = float(find_pattern_in_list("d",datas)[0][1:])
+        except:
+            distance = 1000
+        try:
+            period = float(find_pattern_in_list("p",datas)[0][1:])
+        except:
+            period = 5
+        try:
+            max_frequency = float(find_pattern_in_list("f",datas)[0][1:])
+        except:
+            max_frequency = 1000
+        try:
+            frequencies, velocities = measure.measure(distance, period,
+                                                  method = method,
+                                                  max_frequency = max_frequency)
+        except:
+            raise ValueError("Analysis failed, try to increase the distance.")
+            
+    else:
+        try:
+            frequencies, velocities = measure.measure(method = method)
+        except:
+            raise ValueError("Analysis failed, try to increase the distance.")
+    measure.DRAW = False
+    print("Measurement done, generating fingerprint")
+    start = time.time()
+    deltas = find_pattern_in_list("D",args)
+    if deltas:
+        datas = deltas[0][6:].split('-') #cut 'delta' and split
+        try:
+            length = int(find_pattern_in_list("l",datas)[0][1:])
+        except:
+            length = 9
+        try:
+            max_delta = float(find_pattern_in_list("M",datas)[0][1:])
+        except:
+            max_delta=9
+        try:
+            min_delta = float(find_pattern_in_list("m",datas)[0][1:])
+        except:
+            min_delta = 0.05
+        delta_thresholds = measure.generate_delta_thresholds(length, max_delta,
+                                                             min_delta)
+    else:
+        delta_thresholds = measure.generate_delta_thresholds()
+    fingerprint = measure.generate_fingerprint(frequencies, velocities,
+                                               delta_thresholds)
+    print("Fingerprint done, searching for a compatible database (if absent, create new one)")
+    database = measure.generate_database(delta_thresholds, humidity_n_samples,
+                             temperature_n_samples, load_and_save=True,
+                             method='simulation')
+    print("Database found, the results are the following:")
+    result = measure.knn_regressor(database, fingerprint)[0]
+    if temperature:
+        temp_accuracy = 100-100*abs(temperature-result[0]-273.15)/temperature
+    else:
+        temp_accuracy = 0
+    if humidity:
+        hum_accuracy = 100-100*abs(humidity-result[1])/humidity
+    else:
+        hum_accuracy = 0
+    print('Temperature: {0:.2f}°C | Accuracy: {1:.2f}%'.format(result[0], temp_accuracy))
+    print('Humidity: {0:.2f}% | Accuracy: {1:.2f}%'.format(result[1], hum_accuracy))
+    end = time.time()
+    print("Done in {}s".format(end-start))
 
 if __name__ == "__main__":
     main()
