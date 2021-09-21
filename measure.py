@@ -7,7 +7,7 @@ Created on Sat Jun  5 14:03:02 2021
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.signal import spectrogram
+from scipy.signal import spectrogram, windows
 from scipy.fftpack import rfft, fftfreq
 import librosa
 import sounddevice as sd
@@ -95,7 +95,7 @@ def speed_plot(frequencies, velocities):
     plt.show()
 
 def produce_signal(sampling_f:int = 22_050, period:float=1,
-                   max_frequency:int = 10_240, gain:float=10):
+                   max_frequency:int = 10_240, gain:float=10, tones = None):
     """
     Production of a up-chirp signal from 20Hz to 10.240kHz, modulated to
     compensate the asymmetric-in-frequency attenuation due to air.
@@ -110,6 +110,9 @@ def produce_signal(sampling_f:int = 22_050, period:float=1,
         Maximum frequency of the signal produced, in Hz. The default is 10_240.
     gain : float, optional
         Baseline gain of the signal. The default is 10.
+    tones : np.ndarray optional
+        Pure tones corresponding to the frequencies inspected in following
+        analysis. If different from None, a chord signal is produced.
 
     Returns
     -------
@@ -119,11 +122,19 @@ def produce_signal(sampling_f:int = 22_050, period:float=1,
        Array of the intensities of the signal.
 
     """
-    min_frequency = 20
-    crescendo = gain*librosa.chirp(min_frequency, max_frequency,
-                                   sampling_f, duration = period)
-    modulation = 1#np.geomspace(0.5, 50, len(crescendo))
-    wave_series = modulation*crescendo
+    if tones:
+        signal_length = period*sampling_f
+        wave = np.zeros(signal_length)
+        for tone in tones:
+            wave += librosa.tone(tone, sr = sampling_f, duration = period)
+        window = windows.cosine(signal_length)
+        signal = gain*window*wave
+    else:
+        min_frequency = 20
+        signal = gain*librosa.chirp(min_frequency, max_frequency,
+                                       sampling_f, duration = period)
+    modulation = 1#np.geomspace(0.5, 50, len(signal))
+    wave_series = modulation*signal
     time_series = np.arange(len(wave_series))/sampling_f
     return (time_series, wave_series)
 
