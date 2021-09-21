@@ -320,7 +320,7 @@ def decomposed_simulation (signal:np.ndarray, sampling_f:int = 48_000,#pylint: d
     return (mic_time, mic_signal)
 
 def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
-                  f_range:list = (24_000, 20)):
+                  f_range:list = (24_000, 20), tones=[]):
     """
     Algorithm developed by Nisar, Khan, Tariq in "An Efficient Adaptive Window
     Size Selection Method for Improving Spectrogram Visualization". After a
@@ -339,6 +339,9 @@ def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
     f_range : list, optional
         A priori maximum and minimum frequencies of the signal, used in CQT to
         determine the number of octaves. The default is [24_000, 20].
+    tones : np.ndarray optional
+        Pure tones corresponding to the frequencies inspected in following
+        analysis. If different from None, it superimposes f_range.
 
     Returns
     -------
@@ -350,11 +353,15 @@ def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
         Power spectral densities of the spectrogram pixels.
 
     """
+    if tones:
+        f_range = (tones[-1], tones[0])
+        bins_per_octave = 30
+    else:
+        bins_per_octave = 45
     n_octaves = int(np.log2(f_range[0]/f_range[1]))
-    bins_per_octave = 45
     n_bins = bins_per_octave*n_octaves
     hop_length = 2**(n_octaves-1)
-    spec_2d = np.abs(librosa.cqt(signal, sampling_f, hop_length=hop_length,
+    spec_2d = np.abs(librosa.cqt(signal, sampling_f, hop_length = hop_length,
                              fmin = f_range[1], n_bins = n_bins,
                              bins_per_octave = bins_per_octave,
                              filter_scale = 0.8))
@@ -365,7 +372,7 @@ def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
 
 def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000,#pylint: disable=R0914
                   f_range:list = (24_000, 20), beta:int = 1500,
-                  window_type = 'hamming'):
+                  window_type = 'hamming', tones=[]):
     """
     Algorithm developed by Nisar, Khan, Tariq in "An Efficient Adaptive Window
     Size Selection Method for Improving Spectrogram Visualization". After a
@@ -389,6 +396,9 @@ def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000,#pylint: disable=R091
     f_range : list, optional
         A priori maximum and minimum frequencies of the signal, used in CQT to
         determine the number of octaves. The default is [24_000, 20].
+    tones : np.ndarray optional
+        Pure tones corresponding to the frequencies inspected in following
+        analysis, gets passed to cqt_algorithm.
 
     Returns
     -------
@@ -411,11 +421,12 @@ def nkt_algorithm(signal:np.ndarray, sampling_f:int=48_000,#pylint: disable=R091
         freqs, times, spec_2d = spectrogram(signal, sampling_f, window_type,
                                             width, width//2)
     else:
-        freqs, times, spec_2d = cqt_algorithm(signal, sampling_f, f_range)
+        freqs, times, spec_2d = cqt_algorithm(signal, sampling_f, f_range, tones)
     return freqs, times, spec_2d
 
 def signal_processing(signal:np.ndarray, time:np.ndarray,
-                      sampling_f:int = 48_000, max_frequency:int = 10_240):
+                      sampling_f:int = 48_000, max_frequency:int = 10_240,
+                      tones = None):
     """
     Extract from the input signal the prevalent frequency in time, using the
     spectrogram generated through nkt_algorithm, and restitutes it along with
@@ -425,10 +436,15 @@ def signal_processing(signal:np.ndarray, time:np.ndarray,
     ----------
     signal : np.ndarray
         The signal which is to process.
+    time : np.ndarray
+        The lists of times for the signal.
     sampling_f : int, optional
         Sampling frequency of the signal, in Hertz. The default is 48_000.
-    max_frequency: int, optional
-        Maximum frequency of the signal produced, in Hz. The default is 10_240.
+    max_frequency : int, optional
+        Maximum frequency of the signal produced, in Hz. The default is 10_240.    
+    tones : np.ndarray optional
+        Pure tones corresponding to the frequencies inspected in following
+        analysis. If different from None, filters only the tones maxima.
 
     Returns
     -------
@@ -439,20 +455,41 @@ def signal_processing(signal:np.ndarray, time:np.ndarray,
 
     """
     try:#trim the silent portion of the signal, if there is any
-        tm0 = np.argwhere(abs(signal)>1E-3)[0][0] + 300
+        tm0 = np.argwhere(abs(signal)>1E-3)[0][0] + int(sampling_f//160)
     except:#pylint: disable=W0702
         tm0 = 0
     min_frequency=20
     freqs, times, spec_2d = nkt_algorithm(signal[tm0:], sampling_f,
-                                        f_range=[max_frequency, min_frequency])
+                                        f_range=[max_frequency, min_frequency],
+                                        tones = tones)
     time_list = times + time[tm0]
-    main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
-                               for i in range(len(times))])
-    spectrum = (time_list, main_component)
-    return spectrum, freqs
+    if tones:
+        p_time = np.array([])
+        p_intensity = np.array([])
+        for tone in tones:#merge  
+            start_index = freqs.argwhere(freqs>=tone)[0]
+            min_index = max(start_index-1, 0)
+            max_index = min(start_index+2, len(freqs))
+            indeces = range(min_index, max_index)
+            intensity_merged = np.array([spec_2d[ind] 
+                                         for ind in indeces]).sum(axis=0)
+            peak_pos = [np.argmax(intensity_merged)]
+            p_time = np.append(p_time, time_list[peak_pos])
+            p_intensity = np.append(p_intensity, intensity_merged[peak_pos])
+            # splitted = np.split(freqs, (min_index, max_index))
+            # freqs = np.concatenate(splitted[0], tone, splitted[2])
+            # splitted = np.split(spec_2d, (min_index, max_index))
+            # spec_2d = np.concatenate(splitted[0], intensity_merged,splitted[2])
+        spectrum = (p_time, p_intensity)
+        return spectrum, tones
+    else:
+        main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
+                           for i in range(len(times))])
+        spectrum = (time_list, main_component)
+        return spectrum, freqs
 
 def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
-                    freq_emitted:np.ndarray, distance:float=10):
+                    freq_emitted:np.ndarray, distance:float=10, tones=None):
     """
     Searches the first appearence in the signals of the frequencies listed in
     freqs, and compares their times to determine the speed of sound for that
@@ -468,7 +505,11 @@ def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
         List of the frequencies studied with the spectrogram.
     distance : float
         Distance between speaker and microphone, in meters. The default is 10.
-
+    tones : np.ndarray optional
+        Pure tones corresponding to the frequencies inspected in following
+        analysis. If different from None, evaluates the time difference from
+        the peaks positions, with a faster procedure.
+        
     Returns
     -------
     speed_spectrum : 2D np.ndarray
@@ -477,30 +518,37 @@ def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
     """
     time_list = []
     frequencies = []
-    for frequency in freq_emitted:
-        try:
-            t_emitted = spectrum_emitted[0][np.argwhere(
+    if tones:
+        frequencies = tones
+        time_list = spectrum_acquired[0] - spectrum_acquired[0]
+        speeds = distance/time_list
+    else:
+        for frequency in freq_emitted:
+            try:
+                t_emitted = spectrum_emitted[0][np.argwhere(
                                             spectrum_emitted[1]>=frequency)][0]
-            t_acquired = spectrum_acquired[0][np.argwhere(
-                                           spectrum_acquired[1]>=frequency)][0]
-            delta_t = t_acquired[0]-t_emitted[0]
-            if delta_t > 0:
-                time_list.append(delta_t)
-                frequencies.append(frequency)
-        except:# pylint: disable=bare-except
-            pass
-    speeds = distance/np.array(time_list)
-    def smoothe(vector, n_points_averaging):
-        return np.convolve(vector, np.ones(n_points_averaging), 'valid'
-                           ) / n_points_averaging
-    velocities = smoothe(speeds[30:], 15)
-    frequencies = smoothe(frequencies[30:], 15)
-    speed_spectrum = np.array([frequencies, velocities])
+                t_acquired = spectrum_acquired[0][np.argwhere(
+                                            spectrum_acquired[1]>=frequency)][0]
+                delta_t = t_acquired[0]-t_emitted[0]
+                if delta_t > 0:
+                    time_list.append(delta_t)
+                    frequencies.append(frequency)
+            except:# pylint: disable=bare-except
+                pass
+
+        speeds = distance/np.array(time_list)
+        def smoothe(vector, n_points_averaging):
+            return np.convolve(vector, np.ones(n_points_averaging), 'valid'
+                               ) / n_points_averaging
+        speeds = smoothe(speeds[30:], 15)
+        frequencies = smoothe(frequencies[30:], 15)
+    speed_spectrum = np.array([frequencies, speeds])
     return speed_spectrum
 
-def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: disable=R0913 disable=R0914
-            max_frequency:int = 1000, method = 'decomposed',
-            temperature:float = -1, humidity:float = -1):
+
+def measure(distance:float=1000, period:float=5, #pylint: disable=R0913 disable=R0914
+            sampling_f:int=22_050, max_frequency:int = 1000, finger_length:int = None,
+            method = 'decomposed', temperature:float = -1, humidity:float = -1):
     """
     Produce a varying-frequency signal and study the different speeds for the
     frequencies which compose it. The measurement can be performed in a
@@ -519,20 +567,37 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
     sampling_f : int, optional
         Sampling frequency of the signal, both in emission and acquisition,
         expressed in Hertz. The default is 22_050.
+    finger_length : int, optional
+        Length of the fingerprint which will be produced for the analysis.
+        If specified, the signal will be limited to this number of frequencies,
+        and the processing will filter them out of received signal.
     method : { 'pyroom', 'decomposed', 'experiment' }, optional
         Selects between a measurement conducted in a simulation, done through
         a simple formulation of sound propagation, through pyroom-acoustic
         package, or in a real-life experiment. The default is 'pyroom'.
-
+    temperature : float
+        If the method is not 'experiment', it will be passed to the simulation
+        as the environment temperature: if negative, it will become a random
+        value. The default is -1.
+    humidity : float
+        If the method is not 'experiment', it will be passed to the simulation
+        as the environment humidity: if negative, it will become a random
+        value. The default is -1.
     Returns
     -------
     speed_spectrum : 2D np.ndarray
         It contains (frequency, speed) arrays for the studied environment.
+        If finger_length is specified, the frequencies and corresponding speed
+        are accordingly discretized.
 
     """
     gain_modulation = 10+0.05*(distance-20)
-    time, signal = produce_signal(sampling_f, period,
-                                  max_frequency, gain_modulation)
+    if finger_length:
+        tones = generate_tones(finger_length, max_frequency)
+    else:
+        tones = None
+    time, signal = produce_signal(sampling_f, period, max_frequency,
+                                  gain_modulation, tones)
     if method == 'decomposed':
         mic_time, mic_signal = decomposed_simulation(signal, sampling_f,
                                                     max_frequency, distance,
@@ -548,8 +613,9 @@ def measure(distance:float=1000, period:float=5, sampling_f:int=22_050,#pylint: 
                                                        max_frequency)
     spectrum_acquired, freq_received = signal_processing(mic_signal, mic_time,# pylint: disable=unused-variable
                                                     sampling_f, max_frequency)
+    
     speed_spectrum = frequency_speed(spectrum_emitted, spectrum_acquired,
-                                     freq_emitted, distance)
+                                     freq_emitted, distance, tones)
     if DRAW:
         time_plot((time, signal), (mic_time, mic_signal))
         spectra_plot(spectrum_emitted, spectrum_acquired)
@@ -580,13 +646,16 @@ def generate_delta_thresholds(length:int = 9, max_delta:float= 9,
     """
     return np.linspace(min_delta, max_delta, length)
 
+def generate_tones(length, max_frequency:int = 1000, min_frequency:int = 20):
+    return np.geomspace(min_frequency, max_frequency, length)
+
 def generate_fingerprint(frequency_data : np.ndarray, speed_data : np.ndarray,
                          delta_thresholds : np.ndarray):
     """
         This function generates a reference database, from a set of
     humidity_n_samples X temperature_n_samples environments.
     For each environment the function simulates a frequency sweep, and searches
-    the frequencies f_i where the difference Δc = c(f_i)-c(10Hz) reaches a set
+    the frequencies f_i where the difference Δc = c(f_i)-c(20Hz) reaches a set
     of threshold values, called delta_thresholds.
     These frequencies, alongside with c(10Hz), constitute a fingerprint of the
     environment state.
@@ -626,23 +695,32 @@ def generate_fingerprint(frequency_data : np.ndarray, speed_data : np.ndarray,
     fingerprint = np.insert(fingerprint, 0, speed_20_f)
     return fingerprint
 
-def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
+def generate_database(input_array : np.ndarray,#pylint: disable=R0914
                           humidity_n_samples : int = 21,
                           temperature_n_samples : int = 21,
-                          method = 'simulation', load_and_save:bool = False):
+                          method = 'simulation', tone : bool = False,
+                          load_and_save:bool = False):
     """
         This function generates a reference database, from a set of
-    humidity_n_samples X temperature_n_samples environments.
-    For each environment the function simulates a frequency sweep, and searches
-    the frequencies f_i where the difference Δc = c(f_i)-c(20Hz) reaches a set
-    of threshold values, called delta_thresholds.
-    These frequencies, alongside with c(20Hz), constitute a fingerprint of the
-    environment state.
+    humidity_n_samples X temperature_n_samples environments. Parameter 'tone'
+    determines one functioning way among the following:
+    -tone == False:
+        For each environment the function simulates a frequency sweep, and searches
+        the frequencies f_i where the difference Δc = c(f_i)-c(20Hz) reaches a set
+        of threshold values, called delta_thresholds, which enters as input.
+        These frequencies, alongside with c(20Hz), constitute a fingerprint of the
+        environment state.
+    -tone == True:
+        For each environment the function simulates a combination of pure tones,
+        listed by input, and searches for each of them the speed c(f_i): these
+        constitute a fingerprint of the environment state.
+    
 
     Parameters
     ----------
-    delta_thresholds : np.ndarray
-        Array of Δc values to take as reference, expressed in m/s.
+    input_array : np.ndarray
+        Array of Δc values to take as reference, expressed in m/s. OR
+        Array of pure tones composing the signal, expressed in Hz.
     humidity_n_samples : int, optional
         Dimension of the sampling of humidity values, in a range between
         0% and 100%. The default is 21.
@@ -653,6 +731,9 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         Selects between a generation of the database through a simulation, done
         with 'decomposed' measure, or through a direct calculation of c(φ) with
         environment class, faster but less accurate. The default is 'theory'.
+    tone : bool optional
+        Selects between a discrete frequencies produced signal and a continuos
+        frequency sweep; determines also the type of fingerprint adopered.
     load_and_save : bool, optional
         If True, the function checks if a database file with the same inputs
         is already in the folder, and loads it; otherwise it evaluates it and
@@ -671,25 +752,31 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
         prefix = 'sim'
         if method == 'theory':
             prefix = 'the'
+        if tone:
+            prefix = 'tone_'+prefix
         rows_meta = 'H{0}T{1}'.format(humidity_n_samples,temperature_n_samples)
-        columns_meta = 'len{0}max{1}.csv'.format(len(delta_thresholds),
-                                             delta_thresholds[-1])
+        columns_meta = 'len{0}max{1}.csv'.format(len(input_array),
+                                                 input_array[-1])
         name = prefix+rows_meta+columns_meta
         folder = 'Databases/'
         try:
-            database = pd.read_csv(folder+name)
-            database = database.drop('Unnamed: 0')
+            database = pd.read_csv(folder+name, sep='')
+            if 'Unnamed: 0' in database:
+                database = database.drop('Unnamed: 0')
             return database
         except:#pylint: disable=W0702
             pass
     humidity_min = 0
     humidity_max = 100
-    humidities = np.linspace(humidity_min, humidity_max,
-                              humidity_n_samples)
+    humidities = np.linspace(humidity_min, humidity_max, humidity_n_samples)
     temperature_min = 273.15
     temperature_max = 313.15
     temperatures = np.linspace(temperature_min, temperature_max,
-                              temperature_n_samples)
+                               temperature_n_samples)
+    if tone:
+        finger_length = len(input_array)
+    else:
+        finger_length = None
     data = []
     for h_i in humidities:
         for t_i in temperatures:
@@ -703,23 +790,32 @@ def generate_database(delta_thresholds : np.ndarray,#pylint: disable=R0914
                 speed_varying_f = room.sound_speed_f(frequencies)
             elif method == 'simulation':
                 speed_spectrum = measure(temperature=t_i, humidity=h_i,
-                                         method='pyroom')
+                                         method='pyroom',
+                                         finger_length=finger_length)
                 speed_varying_f = speed_spectrum[1]
                 frequencies = speed_spectrum[0]
             else:
                 raise ValueError('Choose between theory or simulation')
-            speed_20_f = speed_varying_f[0]
-            fingerprint_array = generate_fingerprint(frequencies, speed_varying_f,
-                                               delta_thresholds)
-            fingerprint = {threshold : fingerprint_array[i+1]
-                           for i, threshold in enumerate(delta_thresholds)}
+            if tone:
+                fingerprint_array = speed_varying_f
+                columns = input_array
+            else:
+                fingerprint_array = generate_fingerprint(frequencies,
+                                                         speed_varying_f,
+                                                         input_array)
+                fingerprint_array = np.insert(fingerprint_array, 0,
+                                              speed_varying_f[0])
+                columns = input_array.astype('object')
+                columns = np.insert(columns, 0, 'Sound_speed_20')
+            fingerprint = {column : fingerprint_array[i]
+                           for i, column in enumerate(columns)}
             fingerprint['Temperature'] = t_i - 273.15
             fingerprint['Humidity'] = h_i
-            fingerprint['Sound_speed_20'] = speed_20_f
+            # fingerprint['Sound_speed_20'] = speed_varying_f[0]
             data.append(fingerprint)
     database = pd.DataFrame(data)
-    database = database[['Temperature','Humidity', 'Sound_speed_20',
-                        *delta_thresholds]]
+    database = database[['Temperature','Humidity', #'Sound_speed_20',
+                        *input_array]]
     database = database.fillna(0)
     if load_and_save:
         database.to_csv(folder+name)
