@@ -115,15 +115,15 @@ The room methods can evaluate:
 **Measure**
 This module contains the procedures for the actual measure, both in experimental and simulated conditions, and for following analysis.
 The main function is measure(), which in order:
- - calls produce_signal() to generate a chirp-wave with the required freqency range;
- - calls one between exp_record(), pyroom_simulation() and decomposed_simulation(), to obtain the received signal;
- - calls signal_processing() on both the emitted and the received signals, to obtain the spectrum (main frequency for each time) and list of frequencies;
- - calls frequency_speed(), to evaluate the speed of each frequency comparing the two spectra;
+ - calls produce_signal() to generate a signal with the required frequency range: the script supports chirp-signals and 'chords' of the desired number of tones;
+ - calls one between exp_record(), pyroom_simulation() and decomposed_simulation(), to emit and receive the signal: the first function provide an experimental observation, while the others simulate the wave propagation;
+ - calls signal_processing() on both the emitted and the received signals, to obtain the spectrum (main frequency for each time) and list of frequencies, if the initial signal is a 'chord' it filters only the frequencies of the original signal, and finds the maxima of their peaks in time;
+ - calls frequency_speed(), to evaluate the speed of each frequency comparing the two spectra; if the initial signal is a 'chord', it cosiders only the speeds of the frequencies of the initial signal;
  - if the global variable DRAW is True, calls time_plot(), spectra_plot() and speed_plot() to show the results;
  - returns as output the speed_spectrum, a 2D array of the type (frequencies, speed).
 
 Function generate_delta_thresholds() returns an array of thresholds Δc = c(f)-c(20Hz), which the speed spectrum can reach at varying frequencies f(T,RH).
-The result of measure() function can be processed with generate_fingerprint(), which applies the delta_threshold array to the speed spectrum and determines the minimum frequencies which go over the specific Δc: this array is called fingerprint.
+The result of measure() function can be processed with generate_fingerprint(), which applies the delta_threshold array to the speed spectrum and determines the minimum frequencies which go over the specific Δc: this array is called fingerprint; if the original signal is a 'chord', the speed_spectrum itself can be used as a fingerprint.
 Function generate_database() collects a series of fingerprints for a wide array of T, RH, with the desired type of delta_threshold applied; it can store them in 'Databases/' folder, to process them once and use them only when required.
 A fingerprint can be classified through knn_regressor(), which takes as training set a database, and applies kernel-nearest-neighbour classification method using 10 nearest-neighbours, returning as output the labels (Temperature, Relative Humidity).
 
