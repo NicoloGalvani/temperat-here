@@ -122,7 +122,7 @@ def produce_signal(sampling_f:int = 22_050, period:float=1,
        Array of the intensities of the signal.
 
     """
-    if tones:
+    if isinstance(tones, np.ndarray):
         signal_length = period*sampling_f
         wave = np.zeros(signal_length)
         for tone in tones:
@@ -353,7 +353,7 @@ def cqt_algorithm(signal:np.ndarray, sampling_f:int=48_000,
         Power spectral densities of the spectrogram pixels.
 
     """
-    if tones:
+    if isinstance(tones, np.ndarray):
         f_range = (tones[-1], tones[0])
         bins_per_octave = 30
     else:
@@ -463,13 +463,13 @@ def signal_processing(signal:np.ndarray, time:np.ndarray,
                                         f_range=[max_frequency, min_frequency],
                                         tones = tones)
     time_list = times + time[tm0]
-    if tones:
+    if isinstance(tones, np.ndarray):
         p_time = np.array([])
         p_intensity = np.array([])
-        for tone in tones:#merge  
-            start_index = freqs.argwhere(freqs>=tone)[0]
-            min_index = max(start_index-1, 0)
-            max_index = min(start_index+2, len(freqs))
+        for tone in tones[:-1]:#merge  
+            start_index = np.argwhere(freqs>=tone)[0]
+            min_index = int(max(start_index-1, 0))
+            max_index = int(min(start_index+2, len(freqs)))
             indeces = range(min_index, max_index)
             intensity_merged = np.array([spec_2d[ind] 
                                          for ind in indeces]).sum(axis=0)
@@ -481,7 +481,7 @@ def signal_processing(signal:np.ndarray, time:np.ndarray,
             # splitted = np.split(spec_2d, (min_index, max_index))
             # spec_2d = np.concatenate(splitted[0], intensity_merged,splitted[2])
         spectrum = (p_time, p_intensity)
-        return spectrum, tones
+        return spectrum, tones[:-1]
     else:
         main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
                            for i in range(len(times))])
@@ -518,9 +518,9 @@ def frequency_speed(spectrum_emitted:np.ndarray, spectrum_acquired:np.ndarray,
     """
     time_list = []
     frequencies = []
-    if tones:
-        frequencies = tones
-        time_list = spectrum_acquired[0] - spectrum_acquired[0]
+    if isinstance(tones, np.ndarray):
+        frequencies = tones[:-1]
+        time_list = spectrum_acquired[0] - spectrum_emitted[0]
         speeds = distance/time_list
     else:
         for frequency in freq_emitted:
@@ -610,9 +610,9 @@ def measure(distance:float=1000, period:float=5, #pylint: disable=R0913 disable=
     else:
         raise ValueError('Choose between decomposed, pyroom or experiment')
     spectrum_emitted, freq_emitted = signal_processing(signal, time, sampling_f,
-                                                       max_frequency)
+                                                       max_frequency, tones)
     spectrum_acquired, freq_received = signal_processing(mic_signal, mic_time,# pylint: disable=unused-variable
-                                                    sampling_f, max_frequency)
+                                                    sampling_f, max_frequency, tones)
     
     speed_spectrum = frequency_speed(spectrum_emitted, spectrum_acquired,
                                      freq_emitted, distance, tones)
@@ -646,7 +646,7 @@ def generate_delta_thresholds(length:int = 9, max_delta:float= 9,
     """
     return np.linspace(min_delta, max_delta, length)
 
-def generate_tones(length, max_frequency:int = 1000, min_frequency:int = 20):
+def generate_tones(length=9, max_frequency:int = 1000, min_frequency:int = 20):
     return np.geomspace(min_frequency, max_frequency, length)
 
 def generate_fingerprint(frequency_data : np.ndarray, speed_data : np.ndarray,
@@ -699,7 +699,7 @@ def generate_database(input_array : np.ndarray,#pylint: disable=R0914
                           humidity_n_samples : int = 21,
                           temperature_n_samples : int = 21,
                           method = 'simulation', tone : bool = False,
-                          load_and_save:bool = False):
+                          load_and_save:bool = True):
     """
         This function generates a reference database, from a set of
     humidity_n_samples X temperature_n_samples environments. Parameter 'tone'
@@ -760,12 +760,12 @@ def generate_database(input_array : np.ndarray,#pylint: disable=R0914
         name = prefix+rows_meta+columns_meta
         folder = 'Databases/'
         try:
-            database = pd.read_csv(folder+name, sep='')
+            database = pd.read_csv(folder+name, sep=',')
             if 'Unnamed: 0' in database:
-                database = database.drop('Unnamed: 0')
+                database = database.drop('Unnamed: 0', axis=1)
             return database
         except:#pylint: disable=W0702
-            pass
+            print('Database {} not found, creating one.'.format(name))
     humidity_min = 0
     humidity_max = 100
     humidities = np.linspace(humidity_min, humidity_max, humidity_n_samples)
@@ -798,7 +798,7 @@ def generate_database(input_array : np.ndarray,#pylint: disable=R0914
                 raise ValueError('Choose between theory or simulation')
             if tone:
                 fingerprint_array = speed_varying_f
-                columns = input_array
+                columns = frequencies
             else:
                 fingerprint_array = generate_fingerprint(frequencies,
                                                          speed_varying_f,
@@ -815,7 +815,7 @@ def generate_database(input_array : np.ndarray,#pylint: disable=R0914
             data.append(fingerprint)
     database = pd.DataFrame(data)
     database = database[['Temperature','Humidity', #'Sound_speed_20',
-                        *input_array]]
+                        *columns]]
     database = database.fillna(0)
     if load_and_save:
         database.to_csv(folder+name)
@@ -848,6 +848,4 @@ def knn_regressor(database : pd.DataFrame, sample_to_fit : np.ndarray):
     neigh = KNeighborsRegressor(n_neighbors=6, weights=weight_gauss)
     neigh.fit(x_vec, y_vec)
     environment_conditions = neigh.predict(sample_to_fit)
-    if np.isnan(environment_conditions).any():
-        print(len(sample_to_fit[0]))
     return environment_conditions

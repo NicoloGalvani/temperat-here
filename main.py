@@ -47,9 +47,9 @@ def database(args=None):
     if not args:
         print("The database will be stored into 'Databases/' folder, for later uses.\n",
         "Provide database data as desired, in the following format:\n",
-        "D-l(integer)-M(float)-m(float)-F T(integer) H(integer)\n",
+        "D-l(integer)-M(float)-m(float) F T(integer) H(integer)\n",
         "If F is specified, the database will use a tones-fingerprint instead of delta-fingerprint,\n",
-        "l,M,m are the length, maximum value and minimum value of delta_thresholds,\n",
+        "l,M,m are the length, maximum value and minimum value of the fingerprint,\n",
         " T and H the numbers of temperature values and humidity values;\n",
         "If some arguments are not specified, defaults will replace them.\n",
         "The arguments can be directly specified when calling database.\n")
@@ -59,15 +59,15 @@ def database(args=None):
     if deltas:
         datas = deltas[0][2:].split('-') #cut 'delta' and split
         try:
-            length = int(find_pattern_in_list("l",datas)[0][1:])
+            length = int(find_pattern_in_list("l", datas)[0][1:])
         except:
             length = 9
         try:
-            max_delta = float(find_pattern_in_list("M",datas)[0][1:])
+            max_delta = float(find_pattern_in_list("M", datas)[0][1:])
         except:
             max_delta=9
         try:
-            min_delta = float(find_pattern_in_list("m",datas)[0][1:])
+            min_delta = float(find_pattern_in_list("m", datas)[0][1:])
         except:
             min_delta = 0.05
         if tone:
@@ -76,13 +76,16 @@ def database(args=None):
             input_array = measure.generate_delta_thresholds(length, max_delta,
                                                              min_delta)
     else:
-        input_array = measure.generate_delta_thresholds()
-    temp_input = find_pattern_in_list("T",args)
+        if tone:
+            input_array = measure.generate_tones()
+        else:
+            input_array = measure.generate_delta_thresholds()
+    temp_input = find_pattern_in_list("T", args)
     if temp_input:
         temperature_n_samples = int(temp_input[0][1:])
     else:
         temperature_n_samples = 21
-    hum_input = find_pattern_in_list("H",args)
+    hum_input = find_pattern_in_list("H", args)
     if hum_input:
         humidity_n_samples = int(hum_input[0][1:])
     else:
@@ -104,12 +107,12 @@ def simulation(args=None):
          # "-A built-in simulation performed decomposing the signal into its frequencies (slower),\n",
          # "which can be called with command 'decomposed'.\n",#NOT CORRECTLY WORKING
         "Provide the simulation conditions in the following format:\n",
-        "pyroom/decomposed draw S-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float)-F\n",
+        "pyroom/decomposed draw S-d(float)-p(float)-f(int) T(float)-l(int) H(float)-l(int) D-l(integer)-M(float)-m(float) F\n",
         "if draw is specified, the script will plot wave propagation characteristics,\n",
         "d,p,f are the travel distance, signal period and max studied frequency,\n",
         " T and H the temperature and humidity values in environment,\n",
         "If F is specified, the simulation will use a tones-fingerprint instead of delta-fingerprint,\n",
-        "l,M,m are the length, maximum value and minimum value of delta_thresholds;\n",
+        "l,M,m are the length, maximum value and minimum value of the fingerprint;\n",
         "If some arguments are not specified, defaults will replace them.\n",
         "The arguments can be directly specified when calling simulation.\n")
         args = input(">>").split(' ')
@@ -134,13 +137,20 @@ def simulation(args=None):
             max_delta = float(find_pattern_in_list("M",datas)[0][1:])
         except:
             max_delta=9
+            if tone:
+                max_delta=1000
         try:
             min_delta = float(find_pattern_in_list("m",datas)[0][1:])
         except:
             min_delta = 0.05
+            if tone:
+                min_delta = 20
         delta_thresholds = measure.generate_delta_thresholds(length, max_delta,
                                                              min_delta)
     else:
+        length=9
+        max_delta=1000
+        min_delta=20
         delta_thresholds = measure.generate_delta_thresholds()
     #Temperature
     temp_input = find_pattern_in_list("T",args)
@@ -150,9 +160,10 @@ def simulation(args=None):
         try:
             temperature_n_samples = float(find_pattern_in_list("l",datas)[0][1:])
         except:
-            pass
+            temperature_n_samples = 21
     else:
         temperature = 300
+        temperature_n_samples = 21
     #Humidity
     hum_input = find_pattern_in_list("H",args)
     if hum_input:
@@ -161,13 +172,17 @@ def simulation(args=None):
         try:
             humidity_n_samples = float(find_pattern_in_list("l",datas)[0][1:])
         except:
-            pass
+            humidity_n_samples = 21
     else:
         humidity = 50
+        humidity_n_samples = 21
     #Simulation
     finger_length = None
     if tone:
-        finger_length = length
+        try:
+            finger_length = length
+        except:
+            finger_length = 9
     if 'draw' in args:
         measure.DRAW = True
     simulation = find_pattern_in_list("S", args)
@@ -194,17 +209,20 @@ def simulation(args=None):
     else:
         frequencies, velocities = measure.measure(method = method,
                                           temperature = temperature,
-                                          humidity = humidity)
+                                          humidity = humidity,
+                                          finger_length = finger_length)
     measure.DRAW = False
     #Fingerprint
     if tone:
         fingerprint = frequencies
+        input_array = measure.generate_tones(length, max_delta, min_delta)
     else:
         fingerprint = measure.generate_fingerprint(frequencies, velocities,
-                                               delta_thresholds)
+                                                   delta_thresholds)
+        input_array = delta_thresholds
     print("Fingerprint done, searching for a compatible database (if absent, create new one)")
     #Database
-    database = measure.generate_database(delta_thresholds, humidity_n_samples,
+    database = measure.generate_database(input_array, humidity_n_samples,
                              temperature_n_samples, load_and_save=True,
                              method='simulation', tone=tone)
     print("Database found, the results are the following:")
@@ -322,7 +340,7 @@ def experiment(args=None):
     else:
         temp_accuracy = 0
     if humidity:
-        hum_accuracy = 100-100*abs(humidity-result[1])/humidity
+        hum_accuracy = max(100-100*abs(humidity-result[1])/humidity, 0)
     else:
         hum_accuracy = 0
     print('Temperature: {0:.2f}°C | Accuracy: {1:.2f}%'.format(result[0], temp_accuracy))
