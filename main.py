@@ -214,7 +214,7 @@ def simulation(args=None):
     measure.DRAW = False
     #Fingerprint
     if tone:
-        fingerprint = frequencies
+        fingerprint = velocities
         input_array = measure.generate_tones(length, max_delta, min_delta)
     else:
         fingerprint = measure.generate_fingerprint(frequencies, velocities,

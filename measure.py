@@ -41,7 +41,7 @@ def time_plot(speaker_signal, mic_signal):
     plt.tight_layout()
     plt.show()
 
-def spectra_plot(spectrum_emitted, spectrum_acquired):
+def spectra_plot(spectrum_emitted, spectrum_acquired, tones=None):
     """
     Spectrogram of (top) the signal emitted from the speaker and (bottom)
     the signal acquired from the microphone.
@@ -57,12 +57,18 @@ def spectra_plot(spectrum_emitted, spectrum_acquired):
     fig, axis = plt.subplots(2, 1)
     fig.set_figheight(10)
     fig.set_figwidth(10)
-    axis[0].semilogy(spectrum_emitted[0], spectrum_emitted[1],
-                   linestyle='dotted', color='orange', label='maximum power')
     axis[0].set(title='Speaker', xlabel='Time (s)', ylabel='Frequency (Hz)')
     axis[0].legend()
     axis[0].grid()
-    axis[1].semilogy(spectrum_acquired[0], spectrum_acquired[1],
+    if isinstance(tones, np.ndarray):
+        axis[0].bar(spectrum_emitted[0], spectrum_emitted[1], width=0.4,
+                   linestyle='dotted', color='orange', label='maximum power')
+        axis[1].bar(spectrum_acquired[0], spectrum_acquired[1], width=0.4,
+                   linestyle='dotted', color='orange', label='maximum power')
+    else:
+        axis[0].semilogy(spectrum_emitted[0], spectrum_emitted[1],
+                   linestyle='dotted', color='orange', label='maximum power')
+        axis[1].semilogy(spectrum_acquired[0], spectrum_acquired[1],
                    linestyle='dotted', color='orange', label='maximum power')
     axis[1].set(title='Microphone', xlabel='Time (s)', ylabel='Frequency (Hz)')
     axis[1].legend()
@@ -70,7 +76,7 @@ def spectra_plot(spectrum_emitted, spectrum_acquired):
     plt.tight_layout()
     plt.show()
 
-def speed_plot(frequencies, velocities):
+def speed_plot(frequencies, velocities, tones=None):
     """
     Plot of speed of sound VS frequency in the studied environment.
 
@@ -87,7 +93,10 @@ def speed_plot(frequencies, velocities):
     fig.set_figwidth(10)
     axis.set(title='Speed spectrum', ylabel='Speed (m/s)',
              xlabel='Frequency (Hz)')
-    axis.semilogx(frequencies, velocities,
+    if isinstance(tones, np.ndarray):
+        axis.bar(frequencies, velocities, label='filtered frequencies')
+    else:
+        axis.semilogx(frequencies, velocities,
                   label='mobile average over 15 points')
     axis.legend()
     axis.grid()
@@ -125,10 +134,15 @@ def produce_signal(sampling_f:int = 22_050, period:float=1,
     if isinstance(tones, np.ndarray):
         signal_length = period*sampling_f
         wave = np.zeros(signal_length)
-        for tone in tones:
-            wave += librosa.tone(tone, sr = sampling_f, duration = period)
-        window = windows.cosine(signal_length)
-        signal = gain*window*wave
+        for index, tone in enumerate(tones):
+            peak_width = int(signal_length/len(tones))
+            time_shift = int(index*peak_width//5)
+            pre = np.zeros(time_shift)
+            post = np.zeros(signal_length-time_shift-peak_width)
+            peak = librosa.tone(tone, sr = sampling_f, length = peak_width)
+            window = windows.cosine(peak_width)
+            wave += np.concatenate((pre, peak*window, post))
+        signal = gain*wave
     else:
         min_frequency = 20
         signal = gain*librosa.chirp(min_frequency, max_frequency,
@@ -476,11 +490,7 @@ def signal_processing(signal:np.ndarray, time:np.ndarray,
             peak_pos = [np.argmax(intensity_merged)]
             p_time = np.append(p_time, time_list[peak_pos])
             p_intensity = np.append(p_intensity, intensity_merged[peak_pos])
-            # splitted = np.split(freqs, (min_index, max_index))
-            # freqs = np.concatenate(splitted[0], tone, splitted[2])
-            # splitted = np.split(spec_2d, (min_index, max_index))
-            # spec_2d = np.concatenate(splitted[0], intensity_merged,splitted[2])
-        spectrum = (p_time, p_intensity)
+        spectrum = (p_time, tones[:-1])
         return spectrum, tones[:-1]
     else:
         main_component = np.array([freqs[np.argmax(spec_2d[:,i])]
@@ -618,8 +628,8 @@ def measure(distance:float=1000, period:float=5, #pylint: disable=R0913 disable=
                                      freq_emitted, distance, tones)
     if DRAW:
         time_plot((time, signal), (mic_time, mic_signal))
-        spectra_plot(spectrum_emitted, spectrum_acquired)
-        speed_plot(speed_spectrum[0], speed_spectrum[1])
+        spectra_plot(spectrum_emitted, spectrum_acquired, tones)
+        speed_plot(speed_spectrum[0], speed_spectrum[1], tones)
     return speed_spectrum
 
 ######Stop measure, start analysis
